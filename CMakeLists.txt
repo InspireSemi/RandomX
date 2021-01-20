@@ -170,6 +170,13 @@ if(ARM_ID STREQUAL "aarch64" OR ARM_ID STREQUAL "arm64" OR ARM_ID STREQUAL "armv
   endif()
 endif()
 
+if(ARCH_ID STREQUAL "riscv")
+  list(APPEND randomx_sources src/jit_compiler_rv64.cpp)
+  list(APPEND randomx_sources src/jit_compiler_rv64_static.S)
+  set_property(SOURCE src/jit_compiler_rv64_static.S PROPERTY LANGUAGE C)
+  set_property(SOURCE src/jit_compiler_rv64_static.S PROPERTY XCODE_EXPLICIT_FILE_TYPE sourcecode.asm)
+endif()
+
 set(RANDOMX_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/src" CACHE STRING "RandomX Include path")
 
 add_library(randomx ${randomx_sources})
