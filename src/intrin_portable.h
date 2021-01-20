@@ -31,6 +31,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdint>
 #include "blake2/endian.h"
 
+#include "memory.h"
+
 constexpr int32_t unsigned32ToSigned2sCompl(uint32_t x) {
 	return (-1 == ~0) ? (int32_t)x : (x > INT32_MAX ? (-(int32_t)(UINT32_MAX - x) - 1) : (int32_t)x);
 }
@@ -539,8 +541,8 @@ typedef union {
 	rx_vec_i128 i;
 } rx_vec_f128;
 
-#define rx_aligned_alloc(a, b) malloc(a)
-#define rx_aligned_free(a) free(a)
+#define rx_aligned_alloc(a, b) _in_malloc(a, b)
+#define rx_aligned_free(a) _in_free(a)
 #define rx_prefetch_nta(x)
 #define rx_prefetch_t0(x)
 
@@ -671,20 +673,20 @@ FORCE_INLINE rx_vec_i128 rx_set_int_vec_i128(int _I3, int _I2, int _I1, int _I0)
 	return v;
 };
 
-FORCE_INLINE rx_vec_i128 rx_xor_vec_i128(rx_vec_i128 _A, rx_vec_i128 _B) {
+FORCE_INLINE rx_vec_i128 rx_xor_vec_i128(rx_vec_i128 _A, rx_vec_i128 __B) {
 	rx_vec_i128 c;
-	c.u32[0] = _A.u32[0] ^ _B.u32[0];
-	c.u32[1] = _A.u32[1] ^ _B.u32[1];
-	c.u32[2] = _A.u32[2] ^ _B.u32[2];
-	c.u32[3] = _A.u32[3] ^ _B.u32[3];
+	c.u32[0] = _A.u32[0] ^ __B.u32[0];
+	c.u32[1] = _A.u32[1] ^ __B.u32[1];
+	c.u32[2] = _A.u32[2] ^ __B.u32[2];
+	c.u32[3] = _A.u32[3] ^ __B.u32[3];
 	return c;
 }
 
-FORCE_INLINE rx_vec_i128 rx_load_vec_i128(rx_vec_i128 const*_P) {
+FORCE_INLINE rx_vec_i128 rx_load_vec_i128(rx_vec_i128 const * __P) {
 #if defined(NATIVE_LITTLE_ENDIAN)
-	return *_P;
+	return *__P;
 #else
-	uint32_t* ptr = (uint32_t*)_P;
+	uint32_t* ptr = (uint32_t*)__P;
 	rx_vec_i128 c;
 	c.u32[0] = load32(ptr + 0);
 	c.u32[1] = load32(ptr + 1);
@@ -694,15 +696,15 @@ FORCE_INLINE rx_vec_i128 rx_load_vec_i128(rx_vec_i128 const*_P) {
 #endif
 }
 
-FORCE_INLINE void rx_store_vec_i128(rx_vec_i128 *_P, rx_vec_i128 _B) {
+FORCE_INLINE void rx_store_vec_i128(rx_vec_i128 * __P, rx_vec_i128 __B) {
 #if defined(NATIVE_LITTLE_ENDIAN)
-	*_P = _B;
+	*__P = __B;
 #else
-	uint32_t* ptr = (uint32_t*)_P;
-	store32(ptr + 0, _B.u32[0]);
-	store32(ptr + 1, _B.u32[1]);
-	store32(ptr + 2, _B.u32[2]);
-	store32(ptr + 3, _B.u32[3]);
+	uint32_t* ptr = (uint32_t*)__P;
+	store32(ptr + 0, __B.u32[0]);
+	store32(ptr + 1, __B.u32[1]);
+	store32(ptr + 2, __B.u32[2]);
+	store32(ptr + 3, __B.u32[3]);
 #endif
 }
 

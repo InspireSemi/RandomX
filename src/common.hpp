@@ -122,6 +122,10 @@ namespace randomx {
 	#define RANDOMX_HAVE_COMPILER 1
 	class JitCompilerA64;
 	using JitCompiler = JitCompilerA64;
+#elif defined(__riscv)
+	#define RANDOMX_HAVE_COMPILER 1
+	class JitCompilerRV64;
+	using JitCompiler = JitCompilerRV64;
 #else
 	#define RANDOMX_HAVE_COMPILER 0
 	class JitCompilerFallback;

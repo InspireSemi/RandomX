@@ -33,11 +33,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iostream>
 #include <fstream>
 
+// https://github.com/mpaland/printf 
+#include "printf.h"
+
 constexpr char hexmap[] = "0123456789abcdef";
-inline void outputHex(std::ostream& os, const char* data, int length) {
+inline void outputHex(const char* data, int length) {
 	for (int i = 0; i < length; ++i) {
-		os << hexmap[(data[i] & 0xF0) >> 4];
-		os << hexmap[data[i] & 0x0F];
+		printf("%c", hexmap[(data[i] & 0xF0) >> 4]);
+		printf("%c", hexmap[data[i] & 0x0F]);
 	}
 }
 
