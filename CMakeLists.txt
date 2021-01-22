@@ -54,7 +54,8 @@ src/instructions_portable.cpp
 src/reciprocal.c
 src/virtual_machine.cpp
 src/vm_compiled_light.cpp
-src/blake2/blake2b.c)
+src/blake2/blake2b.c
+src/memory.c)
 
 if(NOT ARCH_ID)
   # allow cross compiling
@@ -168,6 +169,13 @@ if(ARM_ID STREQUAL "aarch64" OR ARM_ID STREQUAL "arm64" OR ARM_ID STREQUAL "armv
     # default build has hardware AES enabled (software AES can be selected at runtime)
     add_flag("-march=armv8-a+crypto")
   endif()
+endif()
+
+if(ARCH_ID STREQUAL "riscv")
+  list(APPEND randomx_sources src/jit_compiler_rv64.cpp)
+  list(APPEND randomx_sources src/jit_compiler_rv64_static.S)
+  set_property(SOURCE src/jit_compiler_rv64_static.S PROPERTY LANGUAGE C)
+  set_property(SOURCE src/jit_compiler_rv64_static.S PROPERTY XCODE_EXPLICIT_FILE_TYPE sourcecode.asm)
 endif()
 
 set(RANDOMX_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/src" CACHE STRING "RandomX Include path")
