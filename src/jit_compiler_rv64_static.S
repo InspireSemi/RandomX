@@ -58,25 +58,25 @@
 
 // Register allocation
 // x0    ->  0
-#define dsPtr x1 // x1 -> pointer to mem buffer and then to dataset    //FIXME: RA
-#define spPtr x2 // x2 -> pointer to scratchpad                  //FIXME: SP
-#define loopCnt x3 // x3    -> loop counter                           //FIXME: need GP?
-#define r0 x4   // x4  -> "r0"
-#define r1 x5   // x5  -> "r1"
-#define r2 x6   // x6  -> "r2"
-#define r3 x7   // x7  -> "r3"
+#define dsPtr x5 // t0: pointer to mem buffer and then to dataset
+#define spPtr x6 // t1: pointer to scratchpad
+#define loopCnt x7 // t2:  loop counter
+#define r0 x28   // t3: "r0"
+#define r1 x29   // t4: "r1"
+#define r2 x30   // t5: "r2"
+#define r3 x31   // t6: "r3"
 //X8 free   //#define fprc x8 // x8  -> fprc 
-#define mamx x9 // x9  -> mx, ma
-#define spMix1 x10   // x10 -> spMix1
-#define regPtr x11 // x11 -> pointer to reg buffer (OUTPUT only)  //was in x0; x11 was a literal for IMUL_RCP
-#define r4 x12 // x12 -> "r4"
-#define r5 x13 // x13 -> "r5"
-#define r6 x14 // x14 -> "r6"
-#define r7 x15 // x15 -> "r7"
-#define spAddr0 x16 // x16 -> spAddr0
-#define spAddr1 x17 // x17 -> spAddr1
-#define temp0 x18 // x18 -> temporary
-#define temp1 x19 // x19 -> temporary
+#define mamx x9 // s1: mx, ma
+#define spMix1 x18   // s2: spMix1
+#define regPtr x19 // s3: pointer to reg buffer (OUTPUT only)  //was in x0; x11 was a literal for IMUL_RCP
+#define r4 x20 // s4: "r4"
+#define r5 x21 // s5: "r5"
+#define r6 x22 // s6: "r6"
+#define r7 x23 // s7: "r7"
+#define spAddr0 x24 // s8: spAddr0
+#define spAddr1 x25 // s9: spAddr1
+#define temp0 x26 // s10: temporary
+#define temp1 x27 // s11: temporary
 // x20 -> literal for IMUL_RCP
 // x21 -> literal for IMUL_RCP
 // x22 -> literal for IMUL_RCP
