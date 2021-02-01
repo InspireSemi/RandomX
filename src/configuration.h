@@ -105,9 +105,14 @@ Total sum of frequencies must be 256
 #define RANDOMX_FREQ_FADD_R        16
 #define RANDOMX_FREQ_FADD_M         5
 #define RANDOMX_FREQ_FSUB_R        16
-#define RANDOMX_FREQ_FSUB_M         5
-#define RANDOMX_FREQ_FSCAL_R        6
-#define RANDOMX_FREQ_FMUL_R        32
+#ifdef BITMANIP
+	#define RANDOMX_FREQ_FSUB_M     5
+	#define RANDOMX_FREQ_FSCAL_R    6
+#else
+	#define RANDOMX_FREQ_FSUB_M     11
+  	#define RANDOMX_FREQ_FSCAL_R    0
+#endif
+#define RANDOMX_FREQ_FMUL_R 	32
 #define RANDOMX_FREQ_FDIV_M         4
 #define RANDOMX_FREQ_FSQRT_R        6
 

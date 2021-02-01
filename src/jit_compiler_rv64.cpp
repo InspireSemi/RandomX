@@ -41,11 +41,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define ADD(rd,rs1,rs2)   0b0000000<<25 | rs2<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b0110011
 #define SUB(rd,rs1,rs2)   0b0100000<<25 | rs2<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b0110011
 #define SRL(rd,rs1,rs2)   0b0000000<<25 | rs2<<20 | rs1<<15 | 0b101<<12 | rd<<7 | 0b0110011
+#define SLL(rd, rs1,rs2)  0b0000000<<25 | rs2<<20 | rs1<<15 | 0b001<<12 | rd<<7 | 0b0110011
 #define AND(rd,rs1,rs2)   0b0000000<<25 | rs2<<20 | rs1<<15 | 0b111<<12 | rd<<7 | 0b0110011
 #define XOR(rd,rs1,rs2)   0b0000000<<25 | rs2<<20 | rs1<<15 | 0b100<<12 | rd<<7 | 0b0110011
 #define MUL(rd,rs1,rs2)   0b0000001<<25 | rs2<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b0110011
 #define MULHU(rd,rs1,rs2) 0b0000001<<25 | rs2<<20 | rs1<<15 | 0b011<<12 | rd<<7 | 0b0110011
 #define MULHS(rd,rs1,rs2) 0b0000001<<25 | rs2<<20 | rs1<<15 | 0b001<<12 | rd<<7 | 0b0110011
+#define OR(rd,rs1,rs2)    0b0000000<<25 | rs2<<20 | rs1<<15 | 0b111<<12 | rd<<7 | 0b0110011
+#define ORI(rd, rs1, imm) imm<<20 | rs1<<15 | 0b110<<12 | rd<<7 | 0b0010011
+
 
 #define ROR(rd,rs1,rs2)   0b0110000<<25 | rs2<<20 | rs1<<15 | 0b101<<12 | rd<<7 | 0b0110011
 #define ROL(rd,rs1,rs2)   0b0110000<<25 | rs2<<20 | rs1<<15 | 0b001<<12 | rd<<7 | 0b0110011
@@ -56,6 +60,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define ADDI(rd,rs1,imm)  imm<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b0010011
 #define ANDI(rd,rs1,imm)  imm<<20 | rs1<<15 | 0b111<<12 | rd<<7 | 0b0010011
 #define SLLI(rd,rs1,imm)  0b00000<<27 | imm<<20 | rs1<<15 | 0b001<<12 | rd<<7 | 0b0010011
+#define SRLI(rd,rs1,imm)  0b00000<<27 | imm<<20 | rs1<<15 | 0b101<<12 | rd<<7 | 0b0010011
+
 
 #define RORI(rd,rs1,imm)  0b01100<<27 | imm<<20 | rs1<<15 | 0b101<<12 | rd<<7 | 0b0010011
 
@@ -82,8 +88,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 //TODO: shift-add #define SLLI_ADDI(rd, rs1, slamt, imm)
 
-
-
 namespace randomx {
 
 static const size_t CodeSize = ((uint8_t*)randomx_init_dataset_rv64_end) - ((uint8_t*)randomx_program_rv64);
@@ -106,7 +110,7 @@ static const size_t CalcDatasetItemSize =
 	// Epilogue
 	((uint8_t*)randomx_calc_dataset_item_rv64_end - (uint8_t*)randomx_calc_dataset_item_rv64_store_result);
 
-constexpr uint32_t IntRegMap[8] = { 4, 5, 6, 7, 12, 13, 14, 15 }; //TODO: may become variable for SW speculation; and may rename for swaps
+constexpr uint32_t IntRegMap[8] = { 28, 29, 30, 31, 20, 21, 22, 23 }; //TODO: may become variable for SW speculation; and may rename for swaps
 
 template<typename T> static constexpr size_t Log2(T value) { return (value > 1) ? (Log2(value / 2) + 1) : 0; }
 
@@ -142,12 +146,15 @@ void JitCompilerRV64::enableAll()
 void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& config)
 {
 	uint32_t codePos = MainLoopBegin + 4;
-
+	
+	// Load ScratchpadL3Mask64 into temp2
+	emit32( LUI(27, RANDOMX_SCRATCHPAD_L3 >> 12), code, codePos ); //overwrites placeholder in asm
+	
 	// and spAddr0, spMix1, ScratchpadL3Mask64
-	emit32( ANDI(16, 10, (Log2(RANDOMX_SCRATCHPAD_L3) - 7)), code, codePos);  //overwrites placeholder in asm
+	emit32( AND(24, 18, 27), code, codePos);  //overwrites placeholder in asm
 
-	// and spAddr0, temp0, ScratchpadL3Mask64
-	emit32( ANDI(17, 18, (Log2(RANDOMX_SCRATCHPAD_L3) - 7)), code, codePos); //overwrites placeholder in asm
+	// and spAddr1, temp0, ScratchpadL3Mask64
+	emit32( AND(24, 26, 27), code, codePos); //overwrites placeholder in asm
 
 	codePos = PrologueSize;
 	literalPos = ImulRcpLiteralsEnd;
@@ -167,11 +174,12 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 
 	//main loop final steps
 
-	// Update spMix2
+	// Update spMix1
 	// eor w18, config.readReg2, config.readReg3
 	emit32( XOR(18, IntRegMap[config.readReg2], IntRegMap[config.readReg3]), code, codePos);
 
 	// Jump back to the main loop
+	// This will be encode as a J <imm> and not a JAl. Becasue the rd = x0
 	const uint32_t offset = (((uint8_t*)randomx_program_rv64_vm_instructions_end) - ((uint8_t*)randomx_program_rv64)) - codePos;
 	emit32(JAL(0, offset), code, codePos);
 
@@ -199,11 +207,24 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 {
 	uint32_t codePos = MainLoopBegin + 4;
 
-	// and w16, w10, ScratchpadL3Mask64
-	emit32(0x121A0000 | 16 | (10 << 5) | ((Log2(RANDOMX_SCRATCHPAD_L3) - 7) << 10), code, codePos);
+	printf("generateProgramLight\n");
 
-	// and w17, w18, ScratchpadL3Mask64
-	emit32(0x121A0000 | 17 | (18 << 5) | ((Log2(RANDOMX_SCRATCHPAD_L3) - 7) << 10), code, codePos);
+	// Load ScratchpadL3Mask64 into temp2
+	emit32( LUI(27, RANDOMX_SCRATCHPAD_L3 >> 12), code, codePos ); //overwrites placeholder in asm
+	printf("code %x, codepos %x\n", code, codePos);
+	printf("LUI %x\n", LUI(27, RANDOMX_SCRATCHPAD_L3 >> 12) );
+
+	// and spAddr0, spMix1, ScratchpadL3Mask64
+	emit32( AND(24, 18, 27), code, codePos);  //overwrites placeholder in asm
+	printf("code %x, codepos %x\n", code, codePos);
+	printf("AND 1 %x\n", (uint32_t) AND(24, 18, 27) );
+
+	// and spAddr1, temp0, ScratchpadL3Mask64
+	emit32( AND(25, 26, 27), code, codePos); //overwrites placeholder in asm
+	printf("code %x, codepos %x\n", code, codePos);
+	printf("AND 2 %x\n", (uint32_t) AND(25, 26, 27) );
+
+	printf("Setup ScratchpadL3Mask64\n");
 
 	codePos = PrologueSize;
 	literalPos = ImulRcpLiteralsEnd;
@@ -217,6 +238,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 		Instruction& instr = program(i);
 		instr.src %= RegistersCount;
 		instr.dst %= RegistersCount;
+		printf("Opcode %d : %x\n", i, instr.opcode);
 		(this->*opTable[instr.opcode])(instr, codePos);//Jump to h_INSTR emmision function by opcode
 	}
 
@@ -225,12 +247,16 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	emit32( XOR(18, IntRegMap[config.readReg2], IntRegMap[config.readReg3]), code, codePos);
 
 	// Jump back to the main loop
+	// This will be encode as a J <imm> and not a JAl. Becasue the rd = x0
 	const uint32_t offset = (((uint8_t*)randomx_program_rv64_vm_instructions_end_light) - ((uint8_t*)randomx_program_rv64)) - codePos;
 	emit32(JAL(0,offset/4), code, codePos); //FIXME: proper offset
+	printf("Set J back to main loop\n");
 
-	// and w2, w9, CacheLineAlignMask
+
+	// and w6, w9, CacheLineAlignMask(tmp1)
 	codePos = (((uint8_t*)randomx_program_rv64_light_cacheline_align_mask) - ((uint8_t*)randomx_program_rv64));
-	emit32(ANDI(2, 9, (Log2(RANDOMX_DATASET_BASE_SIZE) - 7)), code, codePos);
+	emit32( LUI(27, RANDOMX_DATASET_BASE_SIZE >> 12), code, codePos );
+	emit32(AND(6, 9, 27), code, codePos);
 
 	// Update spMix1
 	// eor x10, config.readReg0, config.readReg1
@@ -244,8 +270,19 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	const uint32_t imm_lo = datasetOffset & ((1 << 12) - 1);
 	const uint32_t imm_hi = datasetOffset >> 12;
 
-	emit32(ADDI(2,2,imm_lo), code, codePos); //ARMV8A::ADD_IMM_LO | 2 | (2 << 5) | (imm_lo << 10)
-	emit32(ADDI(2,2,imm_hi), code, codePos); //ARMV8A::ADD_IMM_HI | 2 | (2 << 5) | (imm_hi << 10)
+	printf("imm_lo %x\n", imm_lo);
+	printf("imm_hi %x\n", imm_hi);
+
+	emit32(ADDI(2,2,imm_lo), code, codePos);
+	emit32(ADDI(2,2,imm_hi), code, codePos);
+
+	printf("Program in memory after insertions\n");
+	printf("##################################\n");
+	printf("Main program starts at : %x\n", (uint64_t)randomx_program_rv64);
+	for (uint32_t x = 0; x < CodeSize; x+=4)
+	{
+		printf("Opcode %x : %x %t %x\n", x, *(uint32_t *)(randomx_program_rv64 + x), *(uint32_t *)(code + x) );
+	}
 
 #ifdef __GNUC__
 	__builtin___clear_cache(reinterpret_cast<char*>(code + MainLoopBegin), reinterpret_cast<char*>(code + codePos));
@@ -263,12 +300,15 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	codePos += p2 - p1;
 
 	num32bitLiterals = 64;
-	constexpr uint32_t tmp = 12;
+	constexpr uint32_t temp0 = 26;
+	constexpr uint32_t temp1 = 27;
 
 	for (size_t i = 0; i < N; ++i)
 	{
-		// and x11, x10, CacheSize / CacheLineSize - 1
-		emit32(0x92400000 | 11 | (10 << 5) | ((Log2(CacheSize / CacheLineSize) - 1) << 10), code, codePos);
+		// and x8(second lit for IMUL_RCP), x18(spMix1), CacheSize / CacheLineSize - 1
+		// move the value into temp1.
+		emitMovImmediate(temp1, ((CacheSize / CacheLineSize) - 1), code, codePos);
+		emit32(AND(8, 18, temp1), code, codePos);
 
 		p1 = ((uint8_t*)randomx_calc_dataset_item_rv64_prefetch) + 4;
 		p2 = (uint8_t*)randomx_calc_dataset_item_rv64_mix;
@@ -308,8 +348,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				emit32( XOR(dst, dst, src), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IADD_RS:
-				emit32(SLLI(tmp, src, instr.getModShift()), code, codePos);
-				emit32(ADD(dst, dst, tmp), code, codePos);
+				emit32(SLLI(temp0, src, instr.getModShift()), code, codePos);
+				emit32(ADD(dst, dst, temp0), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IMUL_R:
 				emit32( MUL(dst, dst, src), code, codePos);
@@ -325,8 +365,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 			case randomx::SuperscalarInstructionType::IXOR_C7:
 			case randomx::SuperscalarInstructionType::IXOR_C8:
 			case randomx::SuperscalarInstructionType::IXOR_C9:
-				emitMovImmediate(tmp, instr.getImm32(), code, codePos);
-				emit32(XOR(dst, dst, tmp), code, codePos);
+				emitMovImmediate(temp0, instr.getImm32(), code, codePos);
+				emit32(XOR(dst, dst, temp0), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IMULH_R:
 				emit32( MULHU(dst, dst, src), code, codePos);
@@ -340,10 +380,10 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 					offset &= (1 << 19) - 1;
 					literal_pos += 8;
 					// load 32b immediate reciprocal
-					emit32(LW(tmp, offset, 0), code, codePos);  
+					emit32(LW(temp0, offset, 0), code, codePos);  
 
-					// mul dst, dst, tmp
-					emit32( MUL(dst,dst,tmp), code, codePos);
+					// mul dst, dst, temp0
+					emit32( MUL(dst,dst,temp0), code, codePos);
 				}
 				break;
 			default:
@@ -383,8 +423,14 @@ void JitCompilerRV64::emitMovImmediate(uint32_t dst, uint32_t imm, uint8_t* code
 {
 	uint32_t k = codePos;
 
-	emit32(ADDI(dst, 0, imm), code, k);
-	emit32( LUI(dst, imm), code, k);
+	const uint32_t imm_lo = imm & ((1 << 12) - 1);
+	const uint32_t imm_hi = imm >> 12;
+	constexpr uint32_t temp0 = 26;
+
+	// Load the upper value into temp0
+	emit32( LUI(temp0, imm_hi), code, k );	
+	// Add the imm_hi + imm_lo -> dst
+	emit32(ADDI(dst, temp0, imm_lo), code, k);
 
 	codePos = k;
 }
@@ -395,19 +441,28 @@ void JitCompilerRV64::emitAddImmediate(uint32_t dst, uint32_t src, uint32_t imm,
 
 	const uint32_t imm_lo = imm & ((1 << 12) - 1);
 	const uint32_t imm_hi = imm >> 12;
+	constexpr uint32_t temp0 = 26;
 
-	if (imm_hi)
+	if (imm_lo && imm_hi)
 	{
-		constexpr uint32_t tmp = 18;
-		emitMovImmediate(tmp, imm, code, k);
-
-		// add dst, src, tmp
-		emit32( ADD(dst, src, tmp), code, k);
+		// Load the upper value into temp0
+		emit32( LUI(temp0, imm_hi), code, k );
+		// Add in the lower value so we have the imm in temp0
+		emit32(ADDI(temp0, temp0, imm_lo), code, k);
 	}
 	else if (imm_lo)
 	{
-		emit32(ADDI(dst,src,imm_lo), code, k);
+		// move the lower value into temp0
+		emitMovImmediate(temp0, imm_lo, code, k);
 	}
+	else
+	{
+		// Load the upper value into temp0
+		emit32( LUI(temp0, imm_hi), code, k );
+	}
+
+	// add src and temp0 -> dst
+	emit32(ADD(dst, src, temp0), code, k);
 
 	codePos = k;
 }
@@ -415,10 +470,12 @@ void JitCompilerRV64::emitAddImmediate(uint32_t dst, uint32_t src, uint32_t imm,
 // dst <= mem[src+imm32]
 //have to ADD imm, AND with mask manually
 //make an LD with mask built in?
+// tmp = 26 = temp0
 template<uint32_t tmp>
 void JitCompilerRV64::emitMemLoad(uint32_t dst, uint32_t src, Instruction& instr, uint8_t* code, uint32_t& codePos)
 {
 	uint32_t k = codePos;
+	constexpr uint32_t temp1 = 27;
 
 	uint32_t imm = instr.getImm32();
 
@@ -426,13 +483,15 @@ void JitCompilerRV64::emitMemLoad(uint32_t dst, uint32_t src, Instruction& instr
 	{
 		if (instr.getModMem()) { //Mod.mem != 0, load from L1
 			imm &= (RANDOMX_SCRATCHPAD_L1 - 1);
-			emitAddImmediate(tmp, src, imm, code, k); 
-			emit32(ANDI(tmp, tmp, (Log2(RANDOMX_SCRATCHPAD_L1) - 4)), code, k);
+			emitAddImmediate(tmp, src, imm, code, k);
+			emit32( LUI(temp1, RANDOMX_SCRATCHPAD_L1 >> 12), code, k );
+			emit32( AND(tmp, tmp, temp1), code, k);			 
 		}
 		else { //Mod.mem==0, load from L2
 			imm &= (RANDOMX_SCRATCHPAD_L2 - 1);
 			emitAddImmediate(tmp, src, imm, code, k);
-			emit32(ANDI(tmp, tmp, (Log2(RANDOMX_SCRATCHPAD_L2) - 4)), code, k);
+			emit32( LUI(temp1, RANDOMX_SCRATCHPAD_L2 >> 12), code, k );
+			emit32( AND(tmp, tmp, temp1), code, k);
 		}
 	}
 	else //src==dst, load from L3 scratch range
@@ -453,26 +512,29 @@ void JitCompilerRV64::emitMemLoadFP(uint32_t src, Instruction& instr, uint8_t* c
 	uint32_t k = codePos;
 
 	uint32_t imm = instr.getImm32();
-	constexpr uint32_t tmp = 18;
+	constexpr uint32_t temp0 = 26;
+	constexpr uint32_t temp1 = 27;
 	
 	//Address calculation
 	//loadfp only from L1 or L2; only loads mem src operands, so src=dst not sensible; src is an integer reg
 	if (instr.getModMem()) { //Mod.mem != 0, load from L1
 		imm &= (RANDOMX_SCRATCHPAD_L1 - 1);
-		emitAddImmediate(tmp, src, imm, code, k);
-		emit32(ANDI(tmp, tmp, (Log2(RANDOMX_SCRATCHPAD_L1) - 4)), code, k);
+		emitAddImmediate(temp0, src, imm, code, k);
+		emit32( LUI(temp1, RANDOMX_SCRATCHPAD_L1 >> 12), code, k );
+		emit32( AND(temp0, temp0, temp1), code, k);
 	}
 	else { //Mod.mem==0, load from L2
 		imm &= (RANDOMX_SCRATCHPAD_L2 - 1);
-		emitAddImmediate(tmp, src, imm, code, k);
-		emit32(ANDI(tmp, tmp, (Log2(RANDOMX_SCRATCHPAD_L2) - 4)), code, k);
+		emitAddImmediate(temp0, src, imm, code, k);
+		emit32( LUI(temp1, RANDOMX_SCRATCHPAD_L2 >> 12), code, k );
+		emit32( AND(temp0, temp0, temp1), code, k);
 	}
 	
-	emit32(LW(tmp, tmp, 0), code, k); //load lower word to int reg for conversion
-	emit32(FCVTDW(tmp_fp, tmp, 7), code, k); //convert int32 to double
+	emit32(LW(temp0, temp0, 0), code, k); //load lower word to int reg for conversion
+	emit32(FCVTDW(tmp_fp, temp0, 7), code, k); //convert int32 to double
 
-	emit32(LW(tmp, tmp, 4), code, k); //load upper word
-	emit32(FCVTDW(tmp_fp+1, tmp, 7), code, k); //convert int32 to double
+	emit32(LW(temp0, temp0, 4), code, k); //load upper word
+	emit32(FCVTDW(tmp_fp+1, temp0, 7), code, k); //convert int32 to double
 
 	//caller will complete conversion masking (different for mul or add/sub)
 
@@ -494,9 +556,6 @@ void JitCompilerRV64::h_IADD_RS(Instruction& instr, uint32_t& codePos)
 	emit32(SLLI(tmp, src, shift), code, k);
 	emit32(ADD(dst, dst, tmp), code, k);
 
-	if (instr.dst == RegisterNeedsDisplacement)
-		emitAddImmediate(dst, dst, instr.getImm32(), code, k);
-
 	reg_changed_offset[instr.dst] = k;
 	codePos = k;
 }
@@ -508,7 +567,7 @@ void JitCompilerRV64::h_IADD_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = IntRegMap[instr.dst];
 
-	constexpr uint32_t tmp = 18;
+	constexpr uint32_t tmp = 26;
 	emitMemLoad<tmp>(dst, src, instr, code, k);
 
 	// add dst, dst, tmp
@@ -546,7 +605,7 @@ void JitCompilerRV64::h_ISUB_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = IntRegMap[instr.dst];
 
-	constexpr uint32_t tmp = 18;
+	constexpr uint32_t tmp = 26;
 	emitMemLoad<tmp>(dst, src, instr, code, k);
 
 	// sub dst, dst, tmp
@@ -583,7 +642,7 @@ void JitCompilerRV64::h_IMUL_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = IntRegMap[instr.dst];
 
-	constexpr uint32_t tmp = 18;
+	constexpr uint32_t tmp = 26;
 	emitMemLoad<tmp>(dst, src, instr, code, k);
 
 	// sub dst, dst, tmp
@@ -614,7 +673,7 @@ void JitCompilerRV64::h_IMULH_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = IntRegMap[instr.dst];
 
-	constexpr uint32_t tmp = 18;
+	constexpr uint32_t tmp = 26;
 	emitMemLoad<tmp>(dst, src, instr, code, k);
 
 	// umulh dst, dst, tmp
@@ -645,7 +704,7 @@ void JitCompilerRV64::h_ISMULH_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = IntRegMap[instr.dst];
 
-	constexpr uint32_t tmp = 18;
+	constexpr uint32_t tmp = 26;
 	emitMemLoad<tmp>(dst, src, instr, code, k);
 
 	// smulh dst, dst, tmp
@@ -682,7 +741,7 @@ void JitCompilerRV64::h_IMUL_RCP(Instruction& instr, uint32_t& codePos)
 
 	if (literal_id < 11) //some RCP literals stashed in regs
 	{
-		static constexpr uint32_t literal_regs[13] = { 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20 };
+		static constexpr uint32_t literal_regs[13] = { 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 4 };
 
 		// mul dst, dst, literal_reg
 		emit32(MUL(dst, dst, literal_regs[literal_id]), code, k);
@@ -738,7 +797,7 @@ void JitCompilerRV64::h_IXOR_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = IntRegMap[instr.dst];
 
-	constexpr uint32_t tmp = 18;
+	constexpr uint32_t tmp = 26;
 	emitMemLoad<tmp>(dst, src, instr, code, k);
 
 	// eor dst, dst, tmp
@@ -754,6 +813,8 @@ void JitCompilerRV64::h_IROR_R(Instruction& instr, uint32_t& codePos)
 	const uint32_t dst = IntRegMap[instr.dst];
 	uint32_t rori_amt;
 
+// Turn this on when bit manip extention is present
+#ifdef BITMANIP
 	if (src != dst)
 	{
 		// ror dst, dst, src
@@ -766,7 +827,28 @@ void JitCompilerRV64::h_IROR_R(Instruction& instr, uint32_t& codePos)
 		//emit32( RORI(dst, dst, rori_amt), code, codePos);
 		emit32((rori_amt << 20 | dst << 15 | 0b101 << 12 | dst << 7 | 0b001001), code, codePos);
 	}
-
+#else // emulate ror with other opcodes... see below
+	constexpr uint32_t tmp0 = 26;
+	constexpr uint32_t tmp1 = 27;
+	if (src != dst)
+	{
+		emit32( ORI(tmp0, 0, 32), code, codePos); // temp0 now has 32
+		emit32( SUB(tmp1, tmp0, src), code, codePos); // temp1 now has 32 - src
+		emit32( SRL(tmp0, dst, src), code, codePos); // shift the dst right and put it into temp0
+		emit32( SLL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
+		emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
+	}	
+	else
+	{
+		rori_amt = instr.getImm32() & 0xFFF; // limit imm to 12 bits
+		emit32( ORI(tmp0, 0, 32), code, codePos); // temp0 now has 32
+		emit32( ORI(tmp1, 0, rori_amt), code, codePos); // temp1 now has imm
+		emit32( SUB(tmp1, tmp0, tmp1), code, codePos); // temp1 now has 32 - imm
+		emit32( SRLI(tmp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
+		emit32( SLL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
+		emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
+	}
+#endif
 	reg_changed_offset[instr.dst] = codePos;
 }
 
@@ -777,10 +859,11 @@ void JitCompilerRV64::h_IROL_R(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = IntRegMap[instr.dst];
 	uint32_t rori_amt;
-
+// Turn this on when bit manip extention is present
+#ifdef BITMANIP
 	if (src != dst)
 	{
-		constexpr uint32_t tmp = 18;
+		constexpr uint32_t tmp = 26;
 
 		// sub tmp, xzr, src
 		emit32( SUB(tmp, 0, src), code, k); //todo: hard ROL
@@ -796,6 +879,28 @@ void JitCompilerRV64::h_IROL_R(Instruction& instr, uint32_t& codePos)
 		//emit32( RORI(dst, dst, rori_amt), code, k);
 		emit32( (rori_amt << 20 | dst << 15 | 0b101 << 12 | dst << 7 | 0b001001), code, k);
 	}
+#else // emulate ror with other opcodes... see below
+	constexpr uint32_t tmp0 = 26;
+	constexpr uint32_t tmp1 = 27;
+	if (src != dst)
+	{
+		emit32( ORI(tmp0, 0, 32), code, codePos); // temp0 now has 32
+		emit32( SUB(tmp1, tmp0, src), code, codePos); // temp1 now has 32 - src
+		emit32( SLL(tmp0, dst, src), code, codePos); // shift the dst right and put it into temp0
+		emit32( SRL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
+		emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
+	}	
+	else
+	{
+		rori_amt = instr.getImm32() & 0xFFF; // limit imm to 12 bits
+		emit32( ORI(tmp0, 0, 32), code, codePos); // temp0 now has 32
+		emit32( ORI(tmp1, 0, rori_amt), code, codePos); // temp1 now has imm
+		emit32( SUB(tmp1, tmp0, tmp1), code, codePos); // temp1 now has 32 - imm
+		emit32( SLLI(tmp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
+		emit32( SRL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
+		emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
+	}
+#endif
 
 	reg_changed_offset[instr.dst] = k;
 	codePos = k;
@@ -910,11 +1015,15 @@ void JitCompilerRV64::h_FDIV_M(Instruction& instr, uint32_t& codePos)
 	constexpr uint32_t tmp_fp = 28;
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 
+
+// Not sure if these are needed?  They look specific to ARM??
+//***************************************************************
 	// and tmp_fp, tmp_fp, and_mask_reg
-	emit32(FAND_D(tmp_fp, tmp_fp, 26), code, codePos);
+//	emit32(FAND_D(tmp_fp, tmp_fp, 26), code, codePos);
 
 	// orr tmp_fp, tmp_fp, or_mask_reg
-	emit32(FORR_D(tmp_fp, tmp_fp, 28), code, codePos);
+//	emit32(FORR_D(tmp_fp, tmp_fp, 28), code, codePos);
+//***************************************************************
 
 	emit32( FDIV_D(dst, dst, tmp_fp, 7), code, k);
 
@@ -970,15 +1079,28 @@ void JitCompilerRV64::h_CFROUND(Instruction& instr, uint32_t& codePos)
 
 	const uint32_t src = IntRegMap[instr.src];
 
-	constexpr uint32_t temp0 = 18;
-	constexpr uint32_t temp1 = 19;
+	constexpr uint32_t temp0 = 26;
+	constexpr uint32_t temp1 = 27;
 
-	//rotate src by imm to get new rouding mode bits, mask off, scale upto LUT index
+	//rotate src by imm to get new rouning mode bits, mask off, scale upto LUT index
+#ifdef BITMANIP
 	emit32(((instr.getImm32()&63) << 20 | src << 15 | 0b101 << 12 | temp0 << 7 | 0b001001), code, k);  //emit32(RORI(tmp, src, rori_amt), code, k);  //rori macro oddly doesn't work
+#else
+	{
+		uint32_t rori_amt;
+		rori_amt = instr.getImm32() & 0xfff; // limit imm to 12 bits
+		emit32( ORI(temp0, 0, 32), code, k); // temp0 now has 32
+		emit32( ORI(temp1, 0, rori_amt), code, k); // temp1 now has imm
+		emit32( SUB(temp1, temp0, temp1), code, k); // temp1 now has 32 - imm
+		emit32( SRLI(temp0, src, rori_amt), code, k); // shift the src right and put it into temp0
+		emit32( SLL(temp1, src, temp1), code, k); // shift the src left and put it into dst
+		emit32( OR(temp0, temp1, temp0), code, k); // Now or the two values together to get the ror
+	}	
+#endif
 	emit32(ANDI(temp0, temp0, 0x3), code, k);
 	emit32(SLLI(temp0, temp0, 0x3), code, k);
 
-	//load immediate frm lookup board, rotate to proper fcsr code, mask off
+	//load immediate from lookup board, rotate to proper fcsr code, mask off
 	emitAddImmediate(temp1, 0, *((uint32_t*)frmlut), code, k);
 	emit32(SRL(temp1, temp1, temp0), code, k);
 	emit32(ANDI(temp1, temp1, 0xFF), code, k);
@@ -995,7 +1117,7 @@ void JitCompilerRV64::h_ISTORE(Instruction& instr, uint32_t& codePos)
 
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = IntRegMap[instr.dst];
-	constexpr uint32_t tmp = 18;
+	constexpr uint32_t tmp = 26;
 
 	uint32_t imm = instr.getImm32();
 
@@ -1003,18 +1125,21 @@ void JitCompilerRV64::h_ISTORE(Instruction& instr, uint32_t& codePos)
 		if (instr.getModMem()) { //store to L1
 			imm &= RANDOMX_SCRATCHPAD_L1 - 1;
 			emitAddImmediate(tmp, dst, imm, code, k);
-			emit32(ANDI(tmp, tmp, (Log2(RANDOMX_SCRATCHPAD_L1) - 4)), code, k);
+			emit32( LUI(27, RANDOMX_SCRATCHPAD_L1 >> 12), code, k );
+			emit32( AND(tmp, tmp, 27), code, k);
 		}
 		else { //store to L2
 			imm &= RANDOMX_SCRATCHPAD_L2 - 1;
 			emitAddImmediate(tmp, dst, imm, code, k);
-			emit32(ANDI(tmp, tmp, (Log2(RANDOMX_SCRATCHPAD_L2) - 4)), code, k);
+			emit32( LUI(27, RANDOMX_SCRATCHPAD_L2 >> 12), code, k );
+			emit32( AND(tmp, tmp, 27), code, k);
 		}
 	}
 	else { //store to L3
 		imm &= RANDOMX_SCRATCHPAD_L3 - 1;
 		emitAddImmediate(tmp, dst, imm, code, k);
-		emit32(ANDI(tmp, tmp, (Log2(RANDOMX_SCRATCHPAD_L3) - 4)), code, k);
+		emit32( LUI(27, RANDOMX_SCRATCHPAD_L3 >> 12), code, k );
+		emit32( AND(tmp, tmp, 27), code, k);
 	}
 
 	emit32(ADD(tmp, tmp, 2), code, k);  //add scatchpad ptr from x2 (todo: eliminate, use translation?)
