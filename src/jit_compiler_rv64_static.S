@@ -264,7 +264,8 @@ DECL(randomx_program_rv64_main_loop):
 	//PLACEHOLDERS - instructions with actual mask will be inserted by JIT compiler
 	// spAddr0 = spMix1 & ScratchpadL3Mask64;
 	// spAddr1 = (spMix1 >> 32) & ScratchpadL3Mask64;
-	lui 	temp1, 1
+	andi	spAddr0, spMix1, 1 
+	andi	spAddr1, temp0, 1 
 	andi	spAddr0, spMix1, 1 
 	andi	spAddr1, temp0, 1 
 		
@@ -564,7 +565,9 @@ DECL(randomx_program_rv64_vm_instructions_end_light):
 	mv	x1, sp
 
 DECL(randomx_program_rv64_light_cacheline_align_mask):
-	// Actual mask will be inserted by JIT compiler
+	// Actual mask will be inserted by JIT compiler with 3 opcodes
+	andi	x2, x9, 1
+	andi	x2, x9, 1
 	andi	x2, x9, 1
 
 	// x2 -> item number
@@ -585,41 +588,6 @@ DECL(randomx_program_rv64_light_dataset_offset):
 	add	sp, sp, 96
 
 	j	DECL(randomx_program_rv64_xor_with_dataset_line)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 //--DATASET INITALIZATION-----------------------------------------
 
@@ -649,8 +617,6 @@ DECL(randomx_init_dataset_rv64_main_loop):
 	ret
 
 DECL(randomx_init_dataset_rv64_end):
-
-
 
 
 //--DATASET CALCULATION------------------------------------
