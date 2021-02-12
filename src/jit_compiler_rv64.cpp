@@ -161,7 +161,7 @@ JitCompilerRV64::JitCompilerRV64()
 {
 	memset(reg_changed_offset, 0, sizeof(reg_changed_offset));
 	memcpy(code, (void*) randomx_program_rv64, CodeSize);
-	printf("Code Base address %x\n", code);
+	printf("Code Base address1 %x\n", code);
 }
 
 JitCompilerRV64::~JitCompilerRV64()
@@ -220,7 +220,7 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 	emit32( XOR(18, IntRegMap[config.readReg2], IntRegMap[config.readReg3]), code, codePos);
 
 	// Jump back to the main loop
-	// This will be encode as a J <imm> and not a JAl. Becasue the rd = x0
+	// This will be encode as a J <imm> and not a JAL. Becasue the rd = x0
 	const uint32_t offset = (((uint8_t*)randomx_program_rv64_vm_instructions_end) - ((uint8_t*)randomx_program_rv64)) - codePos;
 	emit32(JAL(0, offset), code, codePos);
 
@@ -269,21 +269,21 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	ScpadL3Mask64_hi = ScpadL3Mask64 >> 12;
 	// Load ScpadL3Mask64 into temp1
 	emit32( LUI(temp1, ScpadL3Mask64_hi), code, codePos ); //overwrites placeholder in asm
-	printf("code %x, codepos %x\n", code, codePos-4);
-	printf("LUI %x\n", LUI(temp1, ScpadL3Mask64) );
+	//printf("code %x, codepos %x\n", code, codePos-4);
+	//printf("LUI %x\n", LUI(temp1, ScpadL3Mask64) );
 	// Add in the lower value so we have the mask in temp1
 	emit32(ADDI(temp1, temp1, ScpadL3Mask64_lo), code, codePos);
 
 	// and spAddr0, spMix1, ScpadL3Mask64
 	emit32( AND(spAddr0, spMix1, temp1), code, codePos);  //overwrites placeholder in asm
-	printf("code %x, codepos %x\n", code, codePos-4);
-	printf("AND 1 %x\n", (uint32_t) AND(spAddr0, spMix1, temp1) );
+	//printf("code %x, codepos %x\n", code, codePos-4);
+	//printf("AND 1 %x\n", (uint32_t) AND(spAddr0, spMix1, temp1) );
 
 	// and spAddr1, temp0, ScpadL3Mask64
 	emit32( AND(spAddr1, temp0, temp1), code, codePos); //overwrites placeholder in asm
-	printf("code %x, codepos %x\n", code, codePos-4);
-	printf("AND 2 %x\n", (uint32_t) AND(spAddr1, temp0, temp1) );
-	printf("Setup ScpadL3Mask64\n");
+	//printf("code %x, codepos %x\n", code, codePos-4);
+	//printf("AND 2 %x\n", (uint32_t) AND(spAddr1, temp0, temp1) );
+	//printf("Setup ScpadL3Mask64\n");
 
 	codePos = PrologueSize;
 	literalPos = ImulRcpLiteralsEnd;
@@ -299,7 +299,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 		Instruction& instr = program(i);
 		instr.src %= RegistersCount;
 		instr.dst %= RegistersCount;
-		printf("Opcode %d : %x\n", i, instr.opcode);
+		//printf("Opcode %d : %x\n", i, instr.opcode);
 		(this->*opTable[instr.opcode])(instr, codePos);//Jump to h_INSTR emmision function by opcode
 	}
 
@@ -311,16 +311,16 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	// This will be encode as a J <imm> and not a JAL. Because the rd = x0
 	const uint32_t offset = (((uint8_t*)randomx_program_rv64_vm_instructions_end_light) - ((uint8_t*)randomx_program_rv64)) - codePos;
 
-	printf("offset %x\n", offset);
-	printf("JAL Opcode %x\n", JAL(0,offset));
+	//printf("offset %x\n", offset);
+	//printf("JAL Opcode %x\n", JAL(0,offset));
 
 	emit32(JAL(0,offset), code, codePos);
-	printf("Set J back to main loop\n");
+	//printf("Set J back to main loop\n");
 
 	// and w6, w9, CacheLineAlignMask(tmp1)
 	codePos = (((uint8_t*)randomx_program_rv64_light_cacheline_align_mask) - ((uint8_t*)randomx_program_rv64));
 
-	printf("randomx_program_rv64_light_cacheline_align_mask %x\n", codePos);
+	//printf("randomx_program_rv64_light_cacheline_align_mask %x\n", codePos);
 
 	RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask & ((1 << 12) - 1);
 	RandomxDataSetBaseSizeMask_hi = RandomxDataSetBaseSizeMask >> 12;
@@ -333,23 +333,23 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	// Update spMix1
 	// eor x10, config.readReg0, config.readReg1
 	codePos = ((uint8_t*)randomx_program_rv64_update_spMix1) - ((uint8_t*)randomx_program_rv64);
-	printf("randomx_program_rv64_update_spMix1 %x\n", codePos);
+	//printf("randomx_program_rv64_update_spMix1 %x\n", codePos);
 	emit32( XOR(18, IntRegMap[config.readReg0], IntRegMap[config.readReg1]), code, codePos);
 
 	// Apply dataset offset
 	codePos = ((uint8_t*)randomx_program_rv64_light_dataset_offset) - ((uint8_t*)randomx_program_rv64);
-	printf("randomx_program_rv64_light_dataset_offset %x\n", codePos);
+	//printf("randomx_program_rv64_light_dataset_offset %x\n", codePos);
 
 	datasetOffset /= CacheLineSize;
 	const uint32_t imm_lo = datasetOffset & ((1 << 12) - 1);
 	const uint32_t imm_hi = datasetOffset >> 12;
 
-	printf("imm_lo %x\n", imm_lo);
-	printf("imm_hi %x\n", imm_hi);
+	//printf("imm_lo %x\n", imm_lo);
+	//printf("imm_hi %x\n", imm_hi);
 
 	emit32( LUI(temp1, imm_hi), code, codePos ); //overwrites placeholder in asm
-	printf("code %x, codepos %x\n", code, codePos-4);
-	printf("LUI %x\n", LUI(temp1, imm_hi) );
+	//printf("code %x, codepos %x\n", code, codePos-4);
+	//printf("LUI %x\n", LUI(temp1, imm_hi) );
 	// Add in the lower value so we have the mask in temp1
 	emit32(ADDI(spPtr, temp1, imm_lo), code, codePos);
 
@@ -361,6 +361,23 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	{
 		printf("Opcode %x : %x \t %x\n", x, *(uint32_t *)(randomx_program_rv64 + x), *(uint32_t *)(code + x) );
 	}
+
+	uint8_t* p1 = (uint8_t*)randomx_calc_dataset_item_rv64;
+	uint8_t* p2 = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
+	uint32_t psize = p2 - p1;
+
+	codePos = ((uint8_t*)randomx_init_dataset_rv64_end) - ((uint8_t*)randomx_program_rv64);
+	printf("SuperscalarHash program\n");
+	printf("Program Size %d\n", psize);
+	printf("codePos %x\n", codePos);
+	printf("##################################\n");
+	for (uint32_t x = 0; x < psize; x+=4)
+	{
+		printf("Opcode %x : %x \n", x+codePos, *(uint32_t *)(code + codePos + x) );
+	}	
+
+
+
 
 #ifdef __GNUC__
 	__builtin___clear_cache(reinterpret_cast<char*>(code + MainLoopBegin), reinterpret_cast<char*>(code + codePos));
@@ -422,7 +439,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 
 		// Jump over literal pool
 		uint32_t literal_pos = jmp_pos;
-		emit32(JAL(0, (codePos - jmp_pos)/4), code, codePos);  //fixme : jump offset (omit /4)? or /2?
+		emit32(JAL(0, (codePos - jmp_pos)), code, codePos);
 
 		for (size_t j = 0; j < progSize; ++j)
 		{
