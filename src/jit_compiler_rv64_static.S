@@ -545,10 +545,11 @@ DECL(randomx_program_rv64_update_spMix1):
 
 DECL(randomx_program_rv64_vm_instructions_end_light):
 	addi sp, sp, -96
-	sd x0, 64(sp)
-	sd x1, 72(sp)
-	sd x2, 80(sp)
-	sd x30, 88(sp)
+	sd x4, 64(sp)
+	sd dsPtr, 72(sp)
+	sd spPtr, 80(sp)
+	// Save ra so we can do the call below
+	sd ra, 88(sp)
 
 	// mx ^= r[readReg2] ^ r[readReg3];
 	xor	mamx, mamx, temp0
@@ -559,32 +560,34 @@ DECL(randomx_program_rv64_vm_instructions_end_light):
 	or mamx, temp0, temp1	
 
 	// x0 -> pointer to cache memory
-	mv	x0, x1
+	mv	x4, dsPtr
 
-	// x1 -> pointer to output
-	mv	x1, sp
+	// dsPtr -> pointer to output
+	mv	dsPtr, sp
 
 DECL(randomx_program_rv64_light_cacheline_align_mask):
 	// Actual mask will be inserted by JIT compiler with 3 opcodes
-	andi	x2, x9, 1
-	andi	x2, x9, 1
-	andi	x2, x9, 1
+	// PLACEHOLDERS
+	andi	spPtr, x9, 1
+	andi	spPtr, x9, 1
+	andi	spPtr, x9, 1
 
 	// x2 -> item number
-	srli	x2, x2, 6
+	srli	spPtr, spPtr, 6
 
 DECL(randomx_program_rv64_light_dataset_offset):
 	// Apply dataset offset (filled in by JIT compiler)
-	addi	x2, x2, 0
-	addi	x2, x2, 0
+	// PLACEHOLDERS
+	addi	spPtr, spPtr, 0
+	addi	spPtr, spPtr, 0
 
 	call	DECL(randomx_calc_dataset_item_rv64)
 
 	mv	spMix1, sp
-	ld x0, 64(sp)
-	ld x1, 72(sp)
-	ld x2, 80(sp)
-	ld x30, 88(sp)
+	ld x4, 64(sp)
+	ld dsPtr, 72(sp)
+	ld spPtr, 80(sp)
+	ld ra, 88(sp)
 	add	sp, sp, 96
 
 	j	DECL(randomx_program_rv64_xor_with_dataset_line)
