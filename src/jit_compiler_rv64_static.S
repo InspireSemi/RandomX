@@ -545,9 +545,9 @@ DECL(randomx_program_rv64_update_spMix1):
 
 DECL(randomx_program_rv64_vm_instructions_end_light):
 	addi sp, sp, -96
-	sd x4, 64(sp)
-	sd dsPtr, 72(sp)
-	sd spPtr, 80(sp)
+	sd a0, 64(sp)
+	sd a1, 72(sp)
+	sd a2, 80(sp)
 	// Save ra so we can do the call below
 	sd ra, 88(sp)
 
@@ -559,11 +559,11 @@ DECL(randomx_program_rv64_vm_instructions_end_light):
 	srli temp1, mamx, 32
 	or mamx, temp0, temp1	
 
-	// x0 -> pointer to cache memory
-	mv	x4, dsPtr
+	// a0 -> pointer to cache memory
+	mv	a0, dsPtr
 
-	// dsPtr -> pointer to output
-	mv	dsPtr, sp
+	// a1 -> pointer to output
+	mv	a1, sp
 
 DECL(randomx_program_rv64_light_cacheline_align_mask):
 	// Actual mask will be inserted by JIT compiler with 3 opcodes
@@ -573,20 +573,21 @@ DECL(randomx_program_rv64_light_cacheline_align_mask):
 	andi	spPtr, x9, 1
 
 	// x2 -> item number
-	srli	spPtr, spPtr, 6
+	srli	a2, a2, 6
 
 DECL(randomx_program_rv64_light_dataset_offset):
 	// Apply dataset offset (filled in by JIT compiler)
 	// PLACEHOLDERS
 	addi	spPtr, spPtr, 0
 	addi	spPtr, spPtr, 0
+	addi	spPtr, spPtr, 0
 
 	call	DECL(randomx_calc_dataset_item_rv64)
 
 	mv	spMix1, sp
-	ld x4, 64(sp)
-	ld dsPtr, 72(sp)
-	ld spPtr, 80(sp)
+	ld a0, 64(sp)
+	ld a1, 72(sp)
+	ld a2, 80(sp)
 	ld ra, 88(sp)
 	add	sp, sp, 96
 
@@ -640,7 +641,7 @@ DECL(randomx_init_dataset_rv64_end):
 // t1 -> temporary
 
 DECL(randomx_calc_dataset_item_rv64):
-	#save regs s0-s11
+	#save regs s0-s10,t0
 	addi sp, sp, -96
 	sd s0,  0(sp)
 	sd s1,  8(sp)
@@ -653,7 +654,7 @@ DECL(randomx_calc_dataset_item_rv64):
 	sd s8, 64(sp)
 	sd s9, 72(sp)
 	sd s10, 80(sp)
-	sd s11, 88(sp)
+	sd t0, 88(sp)
 
 	#save args
 	mv	s0, a0
@@ -710,7 +711,9 @@ superscalarAdd7: .quad 9549104520008361294
 // Prefetch -> SuperScalar hash -> Mix will be repeated N times
 
 DECL(randomx_calc_dataset_item_rv64_prefetch):
-	// Actual mask will be inserted by JIT compiler
+	// Actual mask will be inserted by JIT compiler (3 opcodes) 
+	and	s3, s2, 1
+	and	s3, s2, 1
 	and	s3, s2, 1
 	#add	s3, s0, s3, lsl 6  #fused sl-add  (rs2<<6)
 	slli s3, s3, 6
@@ -761,7 +764,7 @@ DECL(randomx_calc_dataset_item_rv64_store_result):
 	ld s8, 64(sp)
 	ld s9, 72(sp)
 	ld s10, 80(sp)
-	ld s11, 88(sp)
+	ld t0, 88(sp)
 	addi sp, sp, 96
 
 	ret
