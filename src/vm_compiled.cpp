@@ -66,7 +66,9 @@ namespace randomx {
 #ifdef __aarch64__
 		memcpy(reg.f, config.eMask, sizeof(config.eMask));
 #endif
+		printf("reg %lx\n", reg);
 		compiler.getProgramFunc()(reg, mem, scratchpad, RANDOMX_PROGRAM_ITERATIONS);
+		printf("After program is run **********************\n");
 	}
 
 	template class CompiledVm<AlignedAllocator<CacheLineSize>, false, false>;

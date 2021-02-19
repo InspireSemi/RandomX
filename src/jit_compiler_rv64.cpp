@@ -155,7 +155,7 @@ static const size_t CalcDatasetItemSize =
 	// Epilogue
 	((uint8_t*)randomx_calc_dataset_item_rv64_end - (uint8_t*)randomx_calc_dataset_item_rv64_store_result);
 
-constexpr uint32_t IntRegMap[8] = { 28, 29, 30, 31, 20, 21, 22, 23 }; //TODO: may become variable for SW speculation; and may rename for swaps
+constexpr uint32_t IntRegMap[8] = { 28, 29, 30, 31, 20, 21, 22, 23 };
 
 template<typename T> static constexpr size_t Log2(T value) { return (value > 1) ? (Log2(value / 2) + 1) : 0; }
 
@@ -359,7 +359,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	// Add the mask to the Scratchpad Pointer
 	emit32(ADD(12, 12, temp1), code, codePos);
 
-#if 0 
+#if 1 
 	printf("Program in memory after insertions\n");
 	printf("##################################\n");
 	printf("Main program starts at : %x\n", (uint64_t)randomx_program_rv64);
@@ -370,6 +370,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	}
 #endif
 
+#if 0
 	uint8_t* p1 = (uint8_t*)randomx_calc_dataset_item_rv64;
 	uint8_t* p2 = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
 	uint32_t psize = p2 - p1;
@@ -387,10 +388,11 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	codePos += psize;
 	printf("SuperscalarHash program2\n");
 	printf("##################################\n");
-	for (uint32_t x = 0; x < 5000; x+=4) //1000 opcodes.. 
+	for (uint32_t x = 40000; x < 40600; x+=4) //1000 opcodes.. 
 	{
 		printf("Opcode %x : %x \n", x+codePos, *(uint32_t *)(code + codePos + x) );
 	}
+#endif
 
 #ifdef __GNUC__
 	__builtin___clear_cache(reinterpret_cast<char*>(code + MainLoopBegin), reinterpret_cast<char*>(code + codePos));
@@ -431,7 +433,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		emit32( LUI(temp1, CacheSizeMask_hi), code, codePos ); //overwrites placeholder in asm
 		// Add in the lower value so we have the mask in temp1
 		emit32(ADDI(temp1, temp1, CacheSizeMask_lo), code, codePos);
-		emit32(AND(8, 18, temp1), code, codePos);
+		emit32(AND(19, 18, temp1), code, codePos);
 
 		p1 = ((uint8_t*)randomx_calc_dataset_item_rv64_prefetch) + 12;
 		p2 = (uint8_t*)randomx_calc_dataset_item_rv64_mix;
@@ -444,7 +446,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		uint32_t jmp_pos = codePos;
 		codePos += 4;
 
-		printf("generateSuperscalarHash literal pool size %x codePos %x\n", progSize, codePos);
+		//printf("generateSuperscalarHash literal pool size %x codePos %x\n", progSize, codePos);
 
 		// Fill in literal pool
 		for (size_t j = 0; j < progSize; ++j)
@@ -460,19 +462,14 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		uint32_t literal_pos = jmp_pos;
 		emit32(JAL(0, (codePos - jmp_pos)), code, literal_pos);
 
-	//emit32(0xFFFFFFFF, code, codePos);
 
 		for (size_t j = 0; j < progSize; ++j)
 		{
 			const Instruction& instr = prog(j);
-			const uint32_t src = instr.src;
-			const uint32_t dst = instr.dst;
+			const uint32_t src = IntRegMap[instr.src];
+			const uint32_t dst = IntRegMap[instr.dst];
 
-			if(codePos == 0x4a58)
-			{
-				printf("Exception CodePos\n");
-				printf("Opcode instr.opcode %x\n", instr.opcode);
-			}
+			//printf("opcode: %x, src: %x, dst: %x\n",instr.opcode, src, dst );
 
 			switch (static_cast<SuperscalarInstructionType>(instr.opcode))
 			{
@@ -591,10 +588,13 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 
 	printf("codePos before prog end %x\n", codePos);
 
+	//emit32(0xFFFFFFFF, code, codePos);
+
 	p1 = (uint8_t*)randomx_calc_dataset_item_rv64_store_result;
 	p2 = (uint8_t*)randomx_calc_dataset_item_rv64_end;
 	memcpy(code + codePos, p1, p2 - p1);
 	codePos += p2 - p1;
+
 
 }
 

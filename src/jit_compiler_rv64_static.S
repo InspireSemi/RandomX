@@ -61,7 +61,7 @@
 
 // Register allocation
 // x0    ->  0
-#define dsPtr x5 // t0: pointer to mem buffer and then to dataset
+#define dsPtr x5 // t0: pointer to dataset
 #define spPtr x6 // t1: pointer to scratchpad
 #define loopCnt x7 // t2:  loop counter
 #define r0 x28   // t3: "r0"
@@ -642,19 +642,21 @@ DECL(randomx_init_dataset_rv64_end):
 
 DECL(randomx_calc_dataset_item_rv64):
 	#save regs s0-s10,t0
-	addi sp, sp, -96
+	addi sp, sp, -112
 	sd s0,  0(sp)
 	sd s1,  8(sp)
 	sd s2, 16(sp)
 	sd s3, 24(sp)
-	sd s4, 32(sp)
-	sd s5, 40(sp)
-	sd s6, 48(sp)
-	sd s7, 56(sp)
-	sd s8, 64(sp)
-	sd s9, 72(sp)
-	sd s10, 80(sp)
-	sd t0, 88(sp)
+	sd a0, 32(sp)
+	sd a1, 40(sp)
+	sd a2, 48(sp)
+	sd a3, 56(sp)
+	sd a4, 64(sp)
+	sd a5, 72(sp)
+	sd a6, 80(sp)
+	sd a7, 88(sp)
+	sd t1, 96(sp)
+	sd t0, 104(sp)
 
 	#save args
 	mv	s0, a0
@@ -757,15 +759,17 @@ DECL(randomx_calc_dataset_item_rv64_store_result):
 	ld s1,  8(sp)
 	ld s2, 16(sp)
 	ld s3, 24(sp)
-	ld s4, 32(sp)
-	ld s5, 40(sp)
-	ld s6, 48(sp)
-	ld s7, 56(sp)
-	ld s8, 64(sp)
-	ld s9, 72(sp)
-	ld s10, 80(sp)
-	ld t0, 88(sp)
-	addi sp, sp, 96
+	ld a0, 32(sp)
+	ld a1, 40(sp)
+	ld a2, 48(sp)
+	ld a3, 56(sp)
+	ld a4, 64(sp)
+	ld a5, 72(sp)
+	ld a6, 80(sp)
+	ld a7, 88(sp)
+	ld t1, 96(sp)
+	ld t0, 104(sp)
+	addi sp, sp, 112
 
 	ret
 
