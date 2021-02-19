@@ -35,6 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #define LUI(rd, imm)      imm<<12 | rd<<7 | 0b0110111
+#define AUIPC(rd, imm)    imm<<12 | rd<<7 | 0b0010111
 
 #define JAL_BIT20 				0x100000
 #define JAL_BIT20_SHFT			20
@@ -73,7 +74,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define ORI(rd, rs1, imm) imm<<20 | rs1<<15 | 0b110<<12 | rd<<7 | 0b0010011
 
 #define CSRRW(rd,csr,rs1)                 csr<<20 | rs1<<15 | 0b001<<12 | rd<<7 | 0b1110011
-#define FCSR 0  //FIXME right csr index
+#define FCSR 0x3
 
 #define ADDI(rd,rs1,imm)  imm<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b0010011
 #define ADDIW(rd,rs1,imm)  imm<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b0011011
@@ -366,7 +367,8 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	printf("Main program copied to : %x\n", (uint64_t)code);
 	for (uint32_t x = 0; x < CodeSize; x+=4)
 	{
-		printf("Opcode %x : %x \t %x\n", x, *(uint32_t *)(randomx_program_rv64 + x), *(uint32_t *)(code + x) );
+		if (*(uint32_t *)(code + x) != 0)
+			printf("Opcode %x : %x \t %x\n", x, *(uint32_t *)(randomx_program_rv64 + x), *(uint32_t *)(code + x) );
 	}
 #endif
 
@@ -945,6 +947,7 @@ void JitCompilerRV64::h_IMUL_RCP(Instruction& instr, uint32_t& codePos)
 	uint32_t k = codePos;
 
 	constexpr uint32_t tmp = 26;
+	constexpr uint32_t tmp1 = 27;
 	const uint32_t dst = IntRegMap[instr.dst];
 
 	constexpr uint64_t N = 1ULL << 63;
@@ -963,7 +966,7 @@ void JitCompilerRV64::h_IMUL_RCP(Instruction& instr, uint32_t& codePos)
 
 	if (literal_id < 11) //some RCP literals stashed in regs
 	{
-		static constexpr uint32_t literal_regs[13] = { 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 4 };
+		static constexpr uint32_t literal_regs[13] = { 17, 16, 15, 14, 13, 12, 11, 10, 3, 8, 4 };
 
 		// mul dst, dst, literal_reg
 		emit32(MUL(dst, dst, literal_regs[literal_id]), code, k);
@@ -973,7 +976,8 @@ void JitCompilerRV64::h_IMUL_RCP(Instruction& instr, uint32_t& codePos)
 	{
 		// ldr tmp, reciprocal
 		const uint32_t offset = (literalPos - k) / 4;
-		emit32( LD(tmp, 0, offset), code, k);
+		emit32( AUIPC(tmp1, 0), code , k);
+		emit32( LD(tmp, tmp1, offset), code, k);
 
 		// mul dst, dst, tmp
 		emit32(MUL(dst, dst, tmp), code, k);
