@@ -57,8 +57,6 @@ namespace randomx {
 			compiler.enableExecution();
 		}
 
-		printf("generateProgramLight done\n");
-
 		CompiledVm<Allocator, softAes, secureJit>::execute();
 	}
 
