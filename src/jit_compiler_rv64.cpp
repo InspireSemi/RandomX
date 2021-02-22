@@ -91,7 +91,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define BEQ_BIT11_SHFT			11
 #define BEQ_BIT11_OPCODE_SHFT	7
 
-#define BEQ_BITS10_5 				0x03E0
+#define BEQ_BITS10_5 				0x07E0
 #define BEQ_BITS10_5_SHFT			5
 #define BEQ_BITS10_5_OPCODE_SHFT	25
 
@@ -226,7 +226,7 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 	emit32( XOR(18, IntRegMap[config.readReg2], IntRegMap[config.readReg3]), code, codePos);
 
 	// Jump back to the main loop
-	// This will be encode as a J <imm> and not a JAL. Becasue the rd = x0
+	// This will be encode as a J <imm> and not a JAL. Because the rd = x0
 	const uint32_t offset = (((uint8_t*)randomx_program_rv64_vm_instructions_end) - ((uint8_t*)randomx_program_rv64)) - codePos;
 	emit32(JAL(0, offset), code, codePos);
 
@@ -367,6 +367,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	printf("Main program copied to : %x\n", (uint64_t)code);
 	for (uint32_t x = 0; x < CodeSize; x+=4)
 	{
+		//if ( (*(uint32_t *)(code + x) != 0) && (*(uint32_t *)(randomx_program_rv64 + x) == 0) )
 		if (*(uint32_t *)(code + x) != 0)
 			printf("Opcode %x : %x \t %x\n", x, *(uint32_t *)(randomx_program_rv64 + x), *(uint32_t *)(code + x) );
 	}
@@ -458,12 +459,14 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				emit64(reciprocalCache[instr.getImm32()], code, codePos);
 		}
 
-		printf("codePos after literal %x\n", codePos);
+		//printf("codePos after literal %x\n", codePos);
+		//printf("progsize %x\n", progSize);
+		//printf("jmp_pos %x\n", jmp_pos);
 
 		// Jump over literal pool
 		uint32_t literal_pos = jmp_pos;
 		emit32(JAL(0, (codePos - jmp_pos)), code, literal_pos);
-
+		//printf("jal literal pool %x\n", (codePos - jmp_pos));
 
 		for (size_t j = 0; j < progSize; ++j)
 		{
@@ -576,19 +579,19 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 			}
 		}
 
-		printf("codePos after superscalar prog %x\n", codePos);
+		//printf("codePos after superscalar prog %x\n", codePos);
 		p1 = (uint8_t*)randomx_calc_dataset_item_rv64_mix;
 		p2 = (uint8_t*)randomx_calc_dataset_item_rv64_store_result;
 		memcpy(code + codePos, p1, p2 - p1);
 		codePos += p2 - p1;
 
-		printf("codePos after memcpy %x\n", codePos);
+		//printf("codePos after memcpy %x\n", codePos);
 
 		// Update registerValue
 		emit32(ADDI(18, prog.getAddressRegister(), 0), code, codePos);
 	}
 
-	printf("codePos before prog end %x\n", codePos);
+	//printf("codePos before prog end %x\n", codePos);
 
 	//emit32(0xFFFFFFFF, code, codePos);
 
@@ -697,15 +700,17 @@ void JitCompilerRV64::emitMemLoad(uint32_t dst, uint32_t src, Instruction& instr
 	}
 	else //src==dst, load from L3 scratch range
 	{
+		// Clear out lower 3 bits. No idea why ARM was doing this...??
 		imm = (imm & ScratchpadL3Mask) >> 3;
+		imm = (imm & ScratchpadL3Mask) << 3;
 		emitMovImmediate(tmp, imm, code, k);
 	}
 
 	// Add temp0 to pointer to scratchpad
-	emit32(ADD(tmp, 6, tmp), code, k);
+	//emit32(ADD(tmp, 6, tmp), code, k);
 
 	// Load from scratchpad into dst 
-	emit32(LD(dst, tmp, 0), code, k);
+	//emit32(LD(dst, tmp, 0), code, k);
 
 	codePos = k;
 }
@@ -1288,20 +1293,24 @@ void JitCompilerRV64::h_CBRANCH(Instruction& instr, uint32_t& codePos)
 	// Mask off the bits we need to check
 	emit32(AND(temp0,dst,temp0), code, k);
 
+
+	emit32(ORI(temp1, 0, k), code , k);
+	emit32(AND(3,0,temp1), code, k);
+
 	int32_t offset = reg_changed_offset[instr.dst];
 
-	//printf("offset %x\n", offset);
-	//printf("k %x\n", k);
-	//printf("CBRANCH Offset all %x\n", (offset - k));
+	printf("offset %x\n", offset);
+	printf("k %x\n", k);
+	printf("CBRANCH Offset all %x\n", (offset - k));
 
 	// Offset from current, this should already be on at least on a mulitple of 2 bytes
 	offset = (offset - k) & ((1 << 13) - 1);
 	
-	//printf("CBRANCH Offset masked %x\n", offset);
+	printf("CBRANCH Offset masked %x\n", offset);
 
-	
+
 	emit32(BEQ(offset, 0, temp0), code, k);
-	//printf("CBRANCH BEQ %x\n", BEQ(offset, 0, temp0));	
+	printf("CBRANCH BEQ %x\n", BEQ(offset, 0, temp0));	
 
 	for (uint32_t i = 0; i < RegistersCount; ++i)
 		reg_changed_offset[i] = k;
