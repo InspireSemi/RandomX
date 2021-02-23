@@ -119,6 +119,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define FCVTDW(rd,rs1,rm)     0b1101001<<25 | 0b0<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
 #define FSGNJ_D(rd,rs1,rs2)   0b0010001<<25 | rs2<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b1010011
 
+#define FMV_X_D(rd, rs1)	  0b1110001<<25 | 0b0000 << 20 | rs1 << 15 | 0b000 << 12 | rd << 7 | 0b1010011
+#define FMV_D_X(rd, rs1)	  0b1111001<<25 | 0b0000 << 20 | rs1 << 15 | 0b000 << 12 | rd << 7 | 0b1010011
+
+
 //custom F reg bitwise logic - pack with SGNJ, upper funct3 range.
 #define FXOR_D(rd,rs1,rs2)    0b0010001<<25 | rs2<<20 | rs1<<15 | 0b101<<12 | rd<<7 | 0b1010011 //fixme: Add instr
 #define FORR_D(rd,rs1,rs2)    0b0010001<<25 | rs2<<20 | rs1<<15 | 0b110<<12 | rd<<7 | 0b1010011 //fixme: Add instr
@@ -1112,7 +1116,7 @@ void JitCompilerRV64::h_FSWAP_R(Instruction& instr, uint32_t& codePos)
 
 	const uint32_t dst = instr.dst + 16;
 	const uint32_t src = instr.dst + 17;
-	constexpr uint32_t tmp_fp = 28;
+	constexpr uint32_t tmp_fp = 29;
 
 
 	emit32(FSGNJ_D(tmp_fp, dst, dst), code, k);
@@ -1137,7 +1141,7 @@ void JitCompilerRV64::h_FADD_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = (instr.dst % 4) + 16;
 
-	constexpr uint32_t tmp_fp = 28;
+	constexpr uint32_t tmp_fp = 29;
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 	
 	emit32( FADD_D(dst, dst, tmp_fp, 7), code, k);
@@ -1160,7 +1164,7 @@ void JitCompilerRV64::h_FSUB_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = (instr.dst % 4) + 16;
 
-	constexpr uint32_t tmp_fp = 28;
+	constexpr uint32_t tmp_fp = 29;
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 	
 	emit32( FSUB_D(dst, dst, tmp_fp, 7), code, k);
@@ -1171,8 +1175,15 @@ void JitCompilerRV64::h_FSUB_M(Instruction& instr, uint32_t& codePos)
 void JitCompilerRV64::h_FSCAL_R(Instruction& instr, uint32_t& codePos)
 {
 	const uint32_t dst = (instr.dst % 4) + 16;
+	constexpr uint32_t tmp0 = 26;
+	constexpr uint32_t tmp1 = 27;
+	// fp30 contains the scale mask
+	emit32( FMV_X_D(tmp0, 30), code, codePos);
+	emit32( FMV_X_D(tmp1, dst), code, codePos);
+	emit32( XOR(tmp0,tmp0,tmp1), code, codePos);
+	emit32( FMV_D_X(dst, tmp0), code, codePos);
 	//XOR FP reg with 0x80F0000000000000  (const stored in reg 31)
-	emit32( FXOR_D(dst,dst,31), code, codePos);
+	//emit32( FXOR_D(dst,dst,31), code, codePos);
 }
 
 void JitCompilerRV64::h_FMUL_R(Instruction& instr, uint32_t& codePos)
@@ -1190,7 +1201,7 @@ void JitCompilerRV64::h_FDIV_M(Instruction& instr, uint32_t& codePos)
 	const uint32_t src = IntRegMap[instr.src];
 	const uint32_t dst = (instr.dst % 4) + 20;
 
-	constexpr uint32_t tmp_fp = 28;
+	constexpr uint32_t tmp_fp = 29;
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 
 
