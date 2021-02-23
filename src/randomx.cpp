@@ -80,15 +80,10 @@ extern "C" {
 					break;
 
 				case RANDOMX_FLAG_JIT:
-					printf("cache->dealloc\n");
 					cache->dealloc = &randomx::deallocCache<randomx::DefaultAllocator>;
-					printf("cache->jit\n");
 					cache->jit = new randomx::JitCompiler();
-					printf("cache->init\n");
 					cache->initialize = &randomx::initCacheCompile;
-					printf("cache->dataset\n");
 					cache->datasetInit = cache->jit->getDatasetInitFunc();
-					printf("cache->memory\n");
 					cache->memory = (uint8_t*)randomx::DefaultAllocator::allocMemory(randomx::CacheSize);
 					break;
 

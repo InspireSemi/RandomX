@@ -132,6 +132,9 @@ namespace randomx {
 				auto& instr = cache->programs[i](j);
 				if ((SuperscalarInstructionType)instr.opcode == SuperscalarInstructionType::IMUL_RCP) {
 					auto rcp = randomx_reciprocal(instr.getImm32());
+#ifdef PRINT_CACHE
+					printf("rcp %lx\n", rcp);
+#endif
 					instr.setImm32(cache->reciprocalCache.size());
 					cache->reciprocalCache.push_back(rcp);
 				}

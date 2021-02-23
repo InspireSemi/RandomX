@@ -417,6 +417,8 @@ DECL(randomx_program_rv64_vm_instructions_end):
 	// Calculate dataset pointer for dataset prefetch
 DECL(randomx_program_rv64_cacheline_align_mask1):	//tag for code insertion
 	andi temp0, mamx, 1  // PLACEHOLDER - Actual mask will be inserted by JIT compiler
+	andi temp0, mamx, 1
+	andi temp0, mamx, 1
 	add	temp0, temp0, dsPtr
 
 	// Prefetch dataset data
@@ -426,6 +428,8 @@ DECL(randomx_program_rv64_cacheline_align_mask1):	//tag for code insertion
 	// Calculate dataset pointer for dataset read
 DECL(randomx_program_rv64_cacheline_align_mask2):	//tag for code insertion
 	andi spMix1, mamx, 1 // PLACEHOLDER: Actual mask will be inserted by JIT compiler
+	andi spMix1, mamx, 1
+	andi spMix1, mamx, 1
 	add	spMix1, spMix1, dsPtr
 
 DECL(randomx_program_rv64_xor_with_dataset_line):
@@ -604,7 +608,8 @@ DECL(randomx_program_rv64_light_dataset_offset):
 
 DECL(randomx_init_dataset_rv64):
 	// Save return address
-	sd	ra, -16(sp)
+	addi sp, sp, -16
+	sd	ra, 0(sp)
 
 	// Load pointer to cache memory
 	ld	a0, 0(a0)
@@ -616,7 +621,8 @@ DECL(randomx_init_dataset_rv64_main_loop):
 	bne	a2, a3, DECL(randomx_init_dataset_rv64_main_loop)
 
 	// Restore return address
-	ld	ra, 16(sp)
+	ld	ra, 0(sp)
+	add sp, sp, 16
 
 	ret
 
@@ -641,7 +647,7 @@ DECL(randomx_init_dataset_rv64_end):
 // t1 -> temporary
 
 DECL(randomx_calc_dataset_item_rv64):
-	#save regs s0-s10,t0
+	#save regs
 	addi sp, sp, -112
 	sd s0,  0(sp)
 	sd s1,  8(sp)
@@ -662,7 +668,6 @@ DECL(randomx_calc_dataset_item_rv64):
 	mv	s0, a0
 	mv	s1, a1
 	mv	s2, a2
-
 
 	ld	t0, superscalarMul0
 

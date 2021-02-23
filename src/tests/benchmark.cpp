@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
 
 	store32(&seed, seedValue);
 
-	std::cout << "RandomX benchmark v1.1.8" << std::endl;
+	std::cout << "RandomX benchmark v1.1.9" << std::endl;
 
 	if (help) {
 		printUsage(argv[0]);
@@ -308,6 +308,7 @@ int main(int argc, char** argv) {
 		if (cache == nullptr) {
 			throw CacheAllocException();
 		}
+
 		randomx_init_cache(cache, &seed, sizeof(seed));
 		if (miningMode) {
 			dataset = randomx_alloc_dataset(flags);
@@ -315,6 +316,9 @@ int main(int argc, char** argv) {
 				throw DatasetAllocException();
 			}
 			uint32_t datasetItemCount = randomx_dataset_item_count();
+#ifdef DEBUG_MINING
+			printf("datasetItemCount %x\n", datasetItemCount);
+#endif
 			if (initThreadCount > 1) {
 				auto perThread = datasetItemCount / initThreadCount;
 				auto remainder = datasetItemCount % initThreadCount;
@@ -329,8 +333,17 @@ int main(int argc, char** argv) {
 				}
 			}
 			else {
+#ifdef DEBUG_MINING
+				printf("cache ptr %lp\n", cache);
+				printf("cache->memory ptr %lp\n", cache->memory);
+				printf("dataset ptr %lp\n", dataset);
+				printf("dataset->memory ptr %lp\n", dataset->memory);
+#endif
 				randomx_init_dataset(dataset, cache, 0, datasetItemCount);
 			}
+#ifdef DEBUG_MINING
+			printf("cache ptr after randomx_init_dataset() %lp\n", cache);
+#endif
 			randomx_release_cache(cache);
 			cache = nullptr;
 			threads.clear();
@@ -376,8 +389,8 @@ int main(int argc, char** argv) {
 			randomx_release_cache(cache);
 		std::cout << "Calculated result: ";
 		result.print(std::cout);
-		//if (noncesCount == 1000 && seedValue == 0)
-			//std::cout << "Reference result:  10b649a3f15c7c7f88277812f2e74b337a0f20ce909af09199cccb960771cfa1" << std::endl;
+		if (noncesCount == 1000 && seedValue == 0)
+			std::cout << "Reference result:  10b649a3f15c7c7f88277812f2e74b337a0f20ce909af09199cccb960771cfa1" << std::endl;
 		if (!miningMode) {
 			std::cout << "Performance: " << 1000 * elapsed / noncesCount << " ms per hash" << std::endl;
 		}

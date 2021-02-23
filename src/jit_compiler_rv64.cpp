@@ -196,15 +196,34 @@ void JitCompilerRV64::enableAll()
 void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& config)
 {
 	uint32_t codePos = MainLoopBegin + 4;
-	
-	// Load ScratchpadL3Mask64 into temp2
-	emit32( LUI(27, RANDOMX_SCRATCHPAD_L3 >> 12), code, codePos ); //overwrites placeholder in asm
-	
-	// and spAddr0, spMix1, ScratchpadL3Mask64
-	emit32( AND(24, 18, 27), code, codePos);  //overwrites placeholder in asm
+	// These values are calculated from the ARM code AND opcodes using the following web pages:
+	// https://gist.github.com/dinfuehr/51a01ac58c0b23e4de9aac313ed6a06a
+	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
+	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
+	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
+	const uint32_t ScpadL3Mask64 = 0x1fffc0;
+	const uint32_t RandomxDataSetBaseSizeMask = 0x7fffffc0;
+	uint32_t RandomxDataSetBaseSizeMask_hi, RandomxDataSetBaseSizeMask_lo;
+	uint32_t  ScpadL3Mask64_hi, ScpadL3Mask64_lo;
+	uint32_t temp1 = 27;
+	uint32_t temp0 = 26;
+	uint32_t spAddr0 = 24;
+	uint32_t spMix1 = 18;
+	uint32_t spAddr1 = 25;
+	uint32_t spPtr = 6;
 
-	// and spAddr1, temp0, ScratchpadL3Mask64
-	emit32( AND(24, 26, 27), code, codePos); //overwrites placeholder in asm
+	ScpadL3Mask64_lo = ScpadL3Mask64 & ((1 << 12) - 1);
+	ScpadL3Mask64_hi = ScpadL3Mask64 >> 12;
+	// Load ScpadL3Mask64 into temp1
+	emit32( LUI(temp1, ScpadL3Mask64_hi), code, codePos ); //overwrites placeholder in asm
+	// Add in the lower value so we have the mask in temp1
+	emit32(ADDI(temp1, temp1, ScpadL3Mask64_lo), code, codePos);
+
+	// and spAddr0, spMix1, ScpadL3Mask64
+	emit32( AND(spAddr0, spMix1, temp1), code, codePos);  //overwrites placeholder in asm
+
+	// and spAddr1, temp0, ScpadL3Mask64
+	emit32( AND(spAddr1, temp0, temp1), code, codePos); //overwrites placeholder in asm
 
 	codePos = PrologueSize;
 	literalPos = ImulRcpLiteralsEnd;
@@ -235,22 +254,72 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 
 	//insert masks
 
-	// and w18, w18, CacheLineAlignMask
+	// and temp0, ma,mx, CacheLineAlignMask
 	codePos = (((uint8_t*)randomx_program_rv64_cacheline_align_mask1) - ((uint8_t*)randomx_program_rv64));
-	emit32(ANDI(18, 9, (Log2(RANDOMX_DATASET_BASE_SIZE) - 7)), code, codePos);
+	RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask & ((1 << 12) - 1);
+	RandomxDataSetBaseSizeMask_hi = RandomxDataSetBaseSizeMask >> 12;
+	// Load ScratchpadL3Mask64 into temp1
+	emit32( LUI(temp1, RandomxDataSetBaseSizeMask_hi), code, codePos ); //overwrites placeholder in asm
+	// Add in the lower value so we have the mask in temp1
+	emit32(ADDI(temp1, temp1, RandomxDataSetBaseSizeMask_lo), code, codePos);
+	emit32(AND(26, 9, temp1), code, codePos);
 
-	// and w10, w10, CacheLineAlignMask
+	// and spMix1, ma,mx, CacheLineAlignMask
 	codePos = (((uint8_t*)randomx_program_rv64_cacheline_align_mask2) - ((uint8_t*)randomx_program_rv64));
-	emit32(ANDI(10, 9, (Log2(RANDOMX_DATASET_BASE_SIZE) - 7)), code, codePos);
+	RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask & ((1 << 12) - 1);
+	RandomxDataSetBaseSizeMask_hi = RandomxDataSetBaseSizeMask >> 12;
+	// Load ScratchpadL3Mask64 into temp1
+	emit32( LUI(temp1, RandomxDataSetBaseSizeMask_hi), code, codePos ); //overwrites placeholder in asm
+	// Add in the lower value so we have the mask in temp1
+	emit32(ADDI(temp1, temp1, RandomxDataSetBaseSizeMask_lo), code, codePos);
+	emit32(AND(18, 9, temp1), code, codePos);
 
 	// Update spMix1
 	// eor x10, config.readReg0, config.readReg1
 	codePos = ((uint8_t*)randomx_program_rv64_update_spMix1) - ((uint8_t*)randomx_program_rv64);
-	emit32( XOR(10, IntRegMap[config.readReg0], IntRegMap[config.readReg1]), code, codePos);
+	emit32( XOR(18, IntRegMap[config.readReg0], IntRegMap[config.readReg1]), code, codePos);
 
-//#ifdef __GNUC__
-//	__builtin___clear_cache(reinterpret_cast<char*>(code + MainLoopBegin), reinterpret_cast<char*>(code + codePos));
-//#endif
+#ifdef PRINT_GEN_PROGRAM
+
+	printf("Program in memory after insertions\n");
+	printf("##################################\n");
+	printf("Main program starts at : %x\n", (uint64_t)randomx_program_rv64);
+	printf("Main program copied to : %x\n", (uint64_t)code);
+	for (uint32_t x = 0; x < CodeSize; x+=4)
+	{
+		//if ( (*(uint32_t *)(code + x) != 0) && (*(uint32_t *)(randomx_program_rv64 + x) == 0) )
+		if (*(uint32_t *)(code + x) != 0)
+			printf("Opcode %x : %x \t %x\n", x, *(uint32_t *)(randomx_program_rv64 + x), *(uint32_t *)(code + x) );
+	}
+
+	uint8_t* p1 = (uint8_t*)randomx_calc_dataset_item_rv64;
+	uint8_t* p2 = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
+	uint32_t psize = p2 - p1;
+
+	codePos = ((uint8_t*)randomx_init_dataset_rv64_end) - ((uint8_t*)randomx_program_rv64);
+	printf("SuperscalarHash program\n");
+	printf("Program Size %d\n", psize);
+	printf("codePos %x\n", codePos);
+	printf("##################################\n");
+	for (uint32_t x = 0; x < psize; x+=4)
+	{
+		printf("Opcode %x : %x \n", x+codePos, *(uint32_t *)(code + codePos + x) );
+	}
+	
+	codePos += psize;
+	printf("SuperscalarHash program2\n");
+	printf("##################################\n");
+	for (uint32_t x = 40000; x < 40600; x+=4) //1000 opcodes.. 
+	{
+		printf("Opcode %x : %x \n", x+codePos, *(uint32_t *)(code + codePos + x) );
+	}
+#endif
+
+
+
+#ifdef __GNUC__
+	__builtin___clear_cache(reinterpret_cast<char*>(code + MainLoopBegin), reinterpret_cast<char*>(code + codePos));
+#endif
 }
 
 void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguration& config, uint32_t datasetOffset)
@@ -297,20 +366,20 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 		Instruction& instr = program(i);
 		instr.src %= RegistersCount;
 		instr.dst %= RegistersCount;
-		(this->*opTable[instr.opcode])(instr, codePos);//Jump to h_INSTR emmision function by opcode
+		(this->*opTable[instr.opcode])(instr, codePos);  //Jump to h_INSTR emmision function by opcode
 	}
 
-	// Update spMix2
+	// Update spMix
 	// eor w18, config.readReg2, config.readReg3
 	emit32( XOR(18, IntRegMap[config.readReg2], IntRegMap[config.readReg3]), code, codePos);
 
 	// Jump back to the main loop
 	// This will be encode as a J <imm> and not a JAL. Because the rd = x0
 	const uint32_t offset = (((uint8_t*)randomx_program_rv64_vm_instructions_end_light) - ((uint8_t*)randomx_program_rv64)) - codePos;
-
 	emit32(JAL(0,offset), code, codePos);
 
-	// and spPtr, ma,mx, CacheLineAlignMask
+	// and a2, ma,mx, CacheLineAlignMask
+	//This a2 will be passed as a parameter to the randomx_calc_dataset_item_rv64() function 
 	codePos = (((uint8_t*)randomx_program_rv64_light_cacheline_align_mask) - ((uint8_t*)randomx_program_rv64));
 	RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask & ((1 << 12) - 1);
 	RandomxDataSetBaseSizeMask_hi = RandomxDataSetBaseSizeMask >> 12;
@@ -325,7 +394,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	codePos = ((uint8_t*)randomx_program_rv64_update_spMix1) - ((uint8_t*)randomx_program_rv64);
 	emit32( XOR(18, IntRegMap[config.readReg0], IntRegMap[config.readReg1]), code, codePos);
 
-	// Apply dataset offset
+	// Apply dataset offset to a2 which is then passed to the randomx_calc_dataset_item_rv64() function.
 	codePos = ((uint8_t*)randomx_program_rv64_light_dataset_offset) - ((uint8_t*)randomx_program_rv64);
 
 	datasetOffset /= CacheLineSize;
@@ -339,7 +408,8 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	// Add the mask to the Scratchpad Pointer
 	emit32(ADD(12, 12, temp1), code, codePos);
 
-#if 0
+#ifdef PRINT_GEN_PROGRAM
+
 	printf("Program in memory after insertions\n");
 	printf("##################################\n");
 	printf("Main program starts at : %x\n", (uint64_t)randomx_program_rv64);
@@ -396,6 +466,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	CacheSizeMask_lo = CacheSizeMask & ((1 << 12) - 1);
 	CacheSizeMask_hi = CacheSizeMask >> 12;
 
+	//printf("generateSuperscalarHash %d\n", N);
+
 	memcpy(code + codePos, p1, p2 - p1);
 	codePos += p2 - p1;
 
@@ -414,6 +486,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		// Add in the lower value so we have the mask in temp1
 		emit32(ADDI(temp1, temp1, CacheSizeMask_lo), code, codePos);
 		emit32(AND(19, 18, temp1), code, codePos);
+
+		//emit32(0xffffffff, code, codePos);
 
 		p1 = ((uint8_t*)randomx_calc_dataset_item_rv64_prefetch) + 12;
 		p2 = (uint8_t*)randomx_calc_dataset_item_rv64_mix;
@@ -559,6 +633,9 @@ template void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&progr
 
 DatasetInitFunc* JitCompilerRV64::getDatasetInitFunc()
 {
+#ifdef DEBUG_MINING	
+	printf("function address %lx\n", (uint64_t)(code + (((uint8_t*)randomx_init_dataset_rv64) - ((uint8_t*)randomx_program_rv64))));
+#endif
 	return (DatasetInitFunc*)(code + (((uint8_t*)randomx_init_dataset_rv64) - ((uint8_t*)randomx_program_rv64)));
 }
 

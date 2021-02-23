@@ -47,10 +47,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RANDOMX_SUPERSCALAR_LATENCY   170
 
 //Dataset base size in bytes. Must be a power of 2.
-#define RANDOMX_DATASET_BASE_SIZE  2147483648
+#define RANDOMX_DATASET_BASE_SIZE     16777216  //2147483648
 
 //Dataset extra size. Must be divisible by 64.
-#define RANDOMX_DATASET_EXTRA_SIZE 33554368
+#define RANDOMX_DATASET_EXTRA_SIZE    16777216  //33554368
 
 //Number of instructions in a RandomX program. Must be divisible by 8.
 #define RANDOMX_PROGRAM_SIZE       256
@@ -105,13 +105,8 @@ Total sum of frequencies must be 256
 #define RANDOMX_FREQ_FADD_R        16
 #define RANDOMX_FREQ_FADD_M         5
 #define RANDOMX_FREQ_FSUB_R        16
-//#ifdef BITMANIP
-	#define RANDOMX_FREQ_FSUB_M     5
-	#define RANDOMX_FREQ_FSCAL_R    6
-//#else
-//	#define RANDOMX_FREQ_FSUB_M     11
-//  	#define RANDOMX_FREQ_FSCAL_R    0
-//#endif
+#define RANDOMX_FREQ_FSUB_M     5
+#define RANDOMX_FREQ_FSCAL_R    6
 #define RANDOMX_FREQ_FMUL_R 	32
 #define RANDOMX_FREQ_FDIV_M         4
 #define RANDOMX_FREQ_FSQRT_R        6

@@ -35,6 +35,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "configuration.h"
 #include "randomx.h"
 
+// Debug print defines
+
+// Prints cache from initCache()
+//#define PRINT_CACHE
+
+// Dumps the generated program after generateProgramLight() or generateProgram() is executed
+//#define PRINT_GEN_PROGRAM
+
+// Prints the address of the DatasetInitFunc() function
+#define DEBUG_MINING
+
+
+
+
 namespace randomx {
 
 	static_assert(RANDOMX_ARGON_MEMORY >= 8, "RANDOMX_ARGON_MEMORY must be at least 8.");
