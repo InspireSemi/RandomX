@@ -44,7 +44,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //#define PRINT_GEN_PROGRAM
 
 // Prints the address of the DatasetInitFunc() function
-#define DEBUG_MINING
+//#define DEBUG_MINING
 
 
 
