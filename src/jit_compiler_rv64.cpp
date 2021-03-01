@@ -289,9 +289,6 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 		if (*(uint32_t *)(code + x) != 0)
 			printf("Opcode %x : %x \t %x\n", x, *(uint32_t *)(randomx_program_rv64 + x), *(uint32_t *)(code + x) );
 	}
-#endif
-
-#if 0
 
 	uint8_t* p1 = (uint8_t*)randomx_calc_dataset_item_rv64;
 	uint8_t* p2 = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
@@ -467,10 +464,9 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
 	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
 	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
-	const uint32_t CacheSizeMask = 0x3fffff;
-	uint32_t CacheSizeMask_hi, CacheSizeMask_lo;
-	CacheSizeMask_lo = CacheSizeMask & ((1 << 12) - 1);
-	CacheSizeMask_hi = CacheSizeMask >> 12;
+	//const uint32_t CacheSizeMask = 0x3fffff;
+	int32_t CacheSizeMask_hi = 0x400;
+	int32_t CacheSizeMask_lo = -1;
 
 	//printf("generateSuperscalarHash %d\n", N);
 
@@ -490,7 +486,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		// Load ScratchpadL3Mask64 into temp1
 		emit32( LUI(temp1, CacheSizeMask_hi), code, codePos ); //overwrites placeholder in asm
 		// Add in the lower value so we have the mask in temp1
-		emit32(ADDI(temp1, temp1, CacheSizeMask_lo), code, codePos);
+		emit32(ADDIW(temp1, temp1, CacheSizeMask_lo), code, codePos);
 		emit32(AND(19, 18, temp1), code, codePos);
 
 		//emit32(0xffffffff, code, codePos);
