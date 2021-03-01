@@ -201,10 +201,12 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
 	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
 	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
-	const uint32_t ScpadL3Mask64 = 0x1fffc0;
-	const uint32_t RandomxDataSetBaseSizeMask = 0x7fffffc0;
-	uint32_t RandomxDataSetBaseSizeMask_hi, RandomxDataSetBaseSizeMask_lo;
-	uint32_t  ScpadL3Mask64_hi, ScpadL3Mask64_lo;
+	//const uint32_t ScpadL3Mask64 = 0x1fffc0;
+	uint32_t ScpadL3Mask64_hi = 0x200; 
+	uint32_t ScpadL3Mask64_lo = -64;
+	//const uint32_t RandomxDataSetBaseSizeMask = 0x7fffffc0;
+	uint32_t RandomxDataSetBaseSizeMask_hi = 0x80000; 
+	uint32_t RandomxDataSetBaseSizeMask_lo = -64;
 	uint32_t temp1 = 27;
 	uint32_t temp0 = 26;
 	uint32_t spAddr0 = 24;
@@ -212,12 +214,10 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 	uint32_t spAddr1 = 25;
 	uint32_t spPtr = 6;
 
-	ScpadL3Mask64_lo = ScpadL3Mask64 & ((1 << 12) - 1);
-	ScpadL3Mask64_hi = ScpadL3Mask64 >> 12;
 	// Load ScpadL3Mask64 into temp1
 	emit32( LUI(temp1, ScpadL3Mask64_hi), code, codePos ); //overwrites placeholder in asm
 	// Add in the lower value so we have the mask in temp1
-	emit32(ADDI(temp1, temp1, ScpadL3Mask64_lo), code, codePos);
+	emit32(ADDIW(temp1, temp1, ScpadL3Mask64_lo), code, codePos);
 
 	// and spAddr0, spMix1, ScpadL3Mask64
 	emit32( AND(spAddr0, spMix1, temp1), code, codePos);  //overwrites placeholder in asm
@@ -254,25 +254,23 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 
 	//insert masks
 
+#if 0 // This is for a prefetch we do not do in Risc V now...	
 	// and temp0, ma,mx, CacheLineAlignMask
 	codePos = (((uint8_t*)randomx_program_rv64_cacheline_align_mask1) - ((uint8_t*)randomx_program_rv64));
-	RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask & ((1 << 12) - 1);
-	RandomxDataSetBaseSizeMask_hi = RandomxDataSetBaseSizeMask >> 12;
 	// Load ScratchpadL3Mask64 into temp1
 	emit32( LUI(temp1, RandomxDataSetBaseSizeMask_hi), code, codePos ); //overwrites placeholder in asm
 	// Add in the lower value so we have the mask in temp1
-	emit32(ADDI(temp1, temp1, RandomxDataSetBaseSizeMask_lo), code, codePos);
-	emit32(AND(26, 9, temp1), code, codePos);
+	emit32(ADDIW(temp1, temp1, RandomxDataSetBaseSizeMask_lo), code, codePos);
+	emit32(AND(26, 26, temp1), code, codePos);
+#endif
 
 	// and spMix1, ma,mx, CacheLineAlignMask
 	codePos = (((uint8_t*)randomx_program_rv64_cacheline_align_mask2) - ((uint8_t*)randomx_program_rv64));
-	RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask & ((1 << 12) - 1);
-	RandomxDataSetBaseSizeMask_hi = RandomxDataSetBaseSizeMask >> 12;
 	// Load ScratchpadL3Mask64 into temp1
 	emit32( LUI(temp1, RandomxDataSetBaseSizeMask_hi), code, codePos ); //overwrites placeholder in asm
-	// Add in the lower value so we have the mask in temp1
-	emit32(ADDI(temp1, temp1, RandomxDataSetBaseSizeMask_lo), code, codePos);
-	emit32(AND(18, 9, temp1), code, codePos);
+	// Add in the lower value so we have the mask in temp1	
+	emit32(ADDIW(temp1, temp1, RandomxDataSetBaseSizeMask_lo), code, codePos);
+	emit32(AND(18, 18, temp1), code, codePos);
 
 	// Update spMix1
 	// eor x10, config.readReg0, config.readReg1
@@ -291,6 +289,9 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 		if (*(uint32_t *)(code + x) != 0)
 			printf("Opcode %x : %x \t %x\n", x, *(uint32_t *)(randomx_program_rv64 + x), *(uint32_t *)(code + x) );
 	}
+#endif
+
+#if 0
 
 	uint8_t* p1 = (uint8_t*)randomx_calc_dataset_item_rv64;
 	uint8_t* p2 = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
@@ -330,10 +331,12 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
 	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
 	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
-	const uint32_t ScpadL3Mask64 = 0x1fffc0;
-	const uint32_t RandomxDataSetBaseSizeMask = 0x7fffffc0;
-	uint32_t RandomxDataSetBaseSizeMask_hi, RandomxDataSetBaseSizeMask_lo;
-	uint32_t  ScpadL3Mask64_hi, ScpadL3Mask64_lo;
+	//const uint32_t ScpadL3Mask64 = 0x1fffc0;
+	uint32_t ScpadL3Mask64_hi = 0x200; 
+	uint32_t ScpadL3Mask64_lo = -64;
+	//const uint32_t RandomxDataSetBaseSizeMask = 0x7fffffc0;
+	uint32_t RandomxDataSetBaseSizeMask_hi = 0x80000; 
+	uint32_t RandomxDataSetBaseSizeMask_lo = -64;
 	uint32_t temp1 = 27;
 	uint32_t temp0 = 26;
 	uint32_t spAddr0 = 24;
@@ -341,12 +344,10 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	uint32_t spAddr1 = 25;
 	uint32_t spPtr = 6;
 
-	ScpadL3Mask64_lo = ScpadL3Mask64 & ((1 << 12) - 1);
-	ScpadL3Mask64_hi = ScpadL3Mask64 >> 12;
 	// Load ScpadL3Mask64 into temp1
 	emit32( LUI(temp1, ScpadL3Mask64_hi), code, codePos ); //overwrites placeholder in asm
 	// Add in the lower value so we have the mask in temp1
-	emit32(ADDI(temp1, temp1, ScpadL3Mask64_lo), code, codePos);
+	emit32(ADDIW(temp1, temp1, ScpadL3Mask64_lo), code, codePos);
 
 	// and spAddr0, spMix1, ScpadL3Mask64
 	emit32( AND(spAddr0, spMix1, temp1), code, codePos);  //overwrites placeholder in asm
@@ -381,12 +382,10 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	// and a2, ma,mx, CacheLineAlignMask
 	//This a2 will be passed as a parameter to the randomx_calc_dataset_item_rv64() function 
 	codePos = (((uint8_t*)randomx_program_rv64_light_cacheline_align_mask) - ((uint8_t*)randomx_program_rv64));
-	RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask & ((1 << 12) - 1);
-	RandomxDataSetBaseSizeMask_hi = RandomxDataSetBaseSizeMask >> 12;
 	// Load ScratchpadL3Mask64 into temp1
 	emit32( LUI(temp1, RandomxDataSetBaseSizeMask_hi), code, codePos ); //overwrites placeholder in asm
 	// Add in the lower value so we have the mask in temp1
-	emit32(ADDI(temp1, temp1, RandomxDataSetBaseSizeMask_lo), code, codePos);
+	emit32(ADDIW(temp1, temp1, RandomxDataSetBaseSizeMask_lo), code, codePos);
 	emit32(AND(12, 9, temp1), code, codePos);
 
 	// Update spMix1
@@ -398,9 +397,16 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	codePos = ((uint8_t*)randomx_program_rv64_light_dataset_offset) - ((uint8_t*)randomx_program_rv64);
 
 	datasetOffset /= CacheLineSize;
-	const uint32_t imm_lo = datasetOffset & ((1 << 12) - 1);
-	const uint32_t imm_hi = datasetOffset >> 12;
-
+	//printf("datasetOffset %x\n", datasetOffset);
+	int32_t imm_lo = datasetOffset & ((1 << 12) - 1);
+	uint32_t imm_hi = datasetOffset >> 12;
+	// Check for upper bit (signed bit set)
+	if (datasetOffset & 0x800)
+	{
+		imm_hi += 1;
+		imm_lo = imm_lo - 0x1000;
+	}
+	//printf("imm hi %x imm_lo %x\n", imm_hi, imm_lo);
 	//overwrites placeholders in asm
 	emit32( LUI(temp1, imm_hi), code, codePos ); 
 	// Add in the lower value so we have the mask in temp1

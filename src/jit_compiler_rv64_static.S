@@ -416,13 +416,13 @@ DECL(randomx_program_rv64_vm_instructions_end):
 //--4.6.2 step 6------------------------------------
 	// Calculate dataset pointer for dataset prefetch
 DECL(randomx_program_rv64_cacheline_align_mask1):	//tag for code insertion
-	andi temp0, mamx, 1  // PLACEHOLDER - Actual mask will be inserted by JIT compiler
-	andi temp0, mamx, 1
-	andi temp0, mamx, 1
-	add	temp0, temp0, dsPtr
+//	andi temp0, mamx, 1  // PLACEHOLDER - Actual mask will be inserted by JIT compiler
+//	andi temp0, mamx, 1
+//	andi temp0, mamx, 1
+//	add	temp0, temp0, dsPtr
 
-	// Prefetch dataset data
-	// prfm	pldl2strm, [temp0]  //TODO: just ld to a nearby buffer
+// Prefetch dataset data
+// prfm	pldl2strm, [temp0]  //TODO: just ld to a nearby buffer
 	
 //--4.6.2 step 7------------------------------------
 	// Calculate dataset pointer for dataset read
@@ -430,6 +430,9 @@ DECL(randomx_program_rv64_cacheline_align_mask2):	//tag for code insertion
 	andi spMix1, mamx, 1 // PLACEHOLDER: Actual mask will be inserted by JIT compiler
 	andi spMix1, mamx, 1
 	andi spMix1, mamx, 1
+	andi spMix1, mamx, 1
+	li spMix1, 0x10334
+	li spMix1, 0x2adfd
 	add	spMix1, spMix1, dsPtr
 
 DECL(randomx_program_rv64_xor_with_dataset_line):
@@ -608,8 +611,21 @@ DECL(randomx_program_rv64_light_dataset_offset):
 
 DECL(randomx_init_dataset_rv64):
 	// Save return address
-	addi sp, sp, -16
-	sd	ra, 0(sp)
+	// Save all S registers
+	addi sp, sp, -104
+	sd s0,  0(sp)
+	sd s1,  8(sp)
+	sd s2, 16(sp)
+	sd s3, 24(sp)
+	sd s4, 32(sp)
+	sd s5, 40(sp)
+	sd s6, 48(sp)
+	sd s7, 56(sp)
+	sd s8, 64(sp)
+	sd s9, 72(sp)
+	sd s10, 80(sp)
+	sd s11, 88(sp)
+	sd ra, 96(sp)
 
 	// Load pointer to cache memory
 	ld	a0, 0(a0)
@@ -620,9 +636,21 @@ DECL(randomx_init_dataset_rv64_main_loop):
 	add	a2, a2, 1
 	bne	a2, a3, DECL(randomx_init_dataset_rv64_main_loop)
 
-	// Restore return address
-	ld	ra, 0(sp)
-	add sp, sp, 16
+	#restore S regs and ra regs
+	ld s0,  0(sp)
+	ld s1,  8(sp)
+	ld s2, 16(sp)
+	ld s3, 24(sp)
+	ld s4, 32(sp)
+	ld s5, 40(sp)
+	ld s6, 48(sp)
+	ld s7, 56(sp)
+	ld s8, 64(sp)
+	ld s9, 72(sp)
+	ld s10, 80(sp)
+	ld s11, 88(sp)
+	ld ra, 96(sp)
+	addi sp, sp, 104
 
 	ret
 
