@@ -202,11 +202,22 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
 	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
 	//const uint32_t ScpadL3Mask64 = 0x1fffc0;
-	uint32_t ScpadL3Mask64_hi = 0x200; 
-	uint32_t ScpadL3Mask64_lo = -64;
+	uint32_t ScpadL3Mask64_hi = ScratchpadL3Mask64 >> 12; //0x200; 
+	uint32_t ScpadL3Mask64_lo = ScratchpadL3Mask64 & ((1 << 12) - 1); //-64;
+	if (ScpadL3Mask64_lo & 0x800)
+	{
+		ScpadL3Mask64_hi += 1;
+		ScpadL3Mask64_lo = ScpadL3Mask64_lo - 0x1000;
+	}
 	//const uint32_t RandomxDataSetBaseSizeMask = 0x7fffffc0;
-	uint32_t RandomxDataSetBaseSizeMask_hi = 0x80000; 
-	uint32_t RandomxDataSetBaseSizeMask_lo = -64;
+	uint32_t RandomxDataSetBaseSizeMask_hi = CacheLineAlignMask >> 12; //0x80000; 
+	uint32_t RandomxDataSetBaseSizeMask_lo = CacheLineAlignMask & ((1 << 12) - 1); //-64;
+	if (RandomxDataSetBaseSizeMask_lo & 0x800)
+	{
+		RandomxDataSetBaseSizeMask_hi += 1;
+		RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask_lo - 0x1000;
+	}
+
 	uint32_t temp1 = 27;
 	uint32_t temp0 = 26;
 	uint32_t spAddr0 = 24;
@@ -323,23 +334,34 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguration& config, uint32_t datasetOffset)
 {
 	uint32_t codePos = MainLoopBegin + 4;
-	// These values are calculated from the ARM code AND opcodes using the following web pages:
-	// https://gist.github.com/dinfuehr/51a01ac58c0b23e4de9aac313ed6a06a
-	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
-	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
-	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
-	//const uint32_t ScpadL3Mask64 = 0x1fffc0;
-	uint32_t ScpadL3Mask64_hi = 0x200; 
-	uint32_t ScpadL3Mask64_lo = -64;
-	//const uint32_t RandomxDataSetBaseSizeMask = 0x7fffffc0;
-	uint32_t RandomxDataSetBaseSizeMask_hi = 0x80000; 
-	uint32_t RandomxDataSetBaseSizeMask_lo = -64;
 	uint32_t temp1 = 27;
 	uint32_t temp0 = 26;
 	uint32_t spAddr0 = 24;
 	uint32_t spMix1 = 18;
 	uint32_t spAddr1 = 25;
 	uint32_t spPtr = 6;
+	// These values are calculated from the ARM code AND opcodes using the following web pages:
+	// https://gist.github.com/dinfuehr/51a01ac58c0b23e4de9aac313ed6a06a
+	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
+	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
+	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
+	//const uint32_t ScpadL3Mask64 = 0x1fffc0;
+	uint32_t ScpadL3Mask64_hi = ScratchpadL3Mask64 >> 12; //0x200; 
+	uint32_t ScpadL3Mask64_lo = ScratchpadL3Mask64 & ((1 << 12) - 1); //-64;
+	if (ScpadL3Mask64_lo & 0x800)
+	{
+		ScpadL3Mask64_hi += 1;
+		ScpadL3Mask64_lo = ScpadL3Mask64_lo - 0x1000;
+	}
+
+	//const uint32_t RandomxDataSetBaseSizeMask = 0x7fffffc0;
+	uint32_t RandomxDataSetBaseSizeMask_hi = CacheLineAlignMask >> 12; //0x80000; 
+	uint32_t RandomxDataSetBaseSizeMask_lo = CacheLineAlignMask & ((1 << 12) - 1); //-64;
+	if (RandomxDataSetBaseSizeMask_lo & 0x800)
+	{
+		RandomxDataSetBaseSizeMask_hi += 1;
+		RandomxDataSetBaseSizeMask_lo = RandomxDataSetBaseSizeMask_lo - 0x1000;
+	}
 
 	// Load ScpadL3Mask64 into temp1
 	emit32( LUI(temp1, ScpadL3Mask64_hi), code, codePos ); //overwrites placeholder in asm
@@ -464,11 +486,13 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
 	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
 	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
+	// This is based on the CacheSize / CacheLineSize - 1 calculation and the ARM Opcode
+	// and x11, x10, CacheSize / CacheLineSize - 1
+	// emit32(0x92400000 | 11 | (10 << 5) | ((Log2(CacheSize / CacheLineSize) - 1) << 10), code, codePos);
+	// If either cacheSize or CacheLineSize changes this must be recalculated.
 	//const uint32_t CacheSizeMask = 0x3fffff;
-	int32_t CacheSizeMask_hi = 0x400;
-	int32_t CacheSizeMask_lo = -1;
-
-	//printf("generateSuperscalarHash %d\n", N);
+	uint32_t CacheSizeMask_hi = 0x200; 
+	uint32_t CacheSizeMask_lo = -64;
 
 	memcpy(code + codePos, p1, p2 - p1);
 	codePos += p2 - p1;
