@@ -161,6 +161,8 @@ static const size_t CalcDatasetItemSize =
 	((uint8_t*)randomx_calc_dataset_item_rv64_end - (uint8_t*)randomx_calc_dataset_item_rv64_store_result);
 
 constexpr uint32_t IntRegMap[8] = { 28, 29, 30, 31, 20, 21, 22, 23 };
+constexpr uint32_t IntRegMap_SuperScalar[8] = { 10, 11, 12, 13, 14, 15, 16, 17 };
+
 
 template<typename T> static constexpr size_t Log2(T value) { return (value > 1) ? (Log2(value / 2) + 1) : 0; }
 
@@ -420,7 +422,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	int32_t imm_lo = datasetOffset & ((1 << 12) - 1);
 	uint32_t imm_hi = datasetOffset >> 12;
 	// Check for upper bit (signed bit set)
-	if (datasetOffset & 0x800)
+	if (imm_lo & 0x800)
 	{
 		imm_hi += 1;
 		imm_lo = imm_lo - 0x1000;
@@ -488,11 +490,10 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
 	// This is based on the CacheSize / CacheLineSize - 1 calculation and the ARM Opcode
 	// and x11, x10, CacheSize / CacheLineSize - 1
-	// emit32(0x92400000 | 11 | (10 << 5) | ((Log2(CacheSize / CacheLineSize) - 1) << 10), code, codePos);
 	// If either cacheSize or CacheLineSize changes this must be recalculated.
 	//const uint32_t CacheSizeMask = 0x3fffff;
-	uint32_t CacheSizeMask_hi = 0x200; 
-	uint32_t CacheSizeMask_lo = -64;
+	uint32_t CacheSizeMask_hi = 0x400; 
+	uint32_t CacheSizeMask_lo = -1;
 
 	memcpy(code + codePos, p1, p2 - p1);
 	codePos += p2 - p1;
@@ -505,6 +506,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 
 	for (size_t i = 0; i < N; ++i)
 	{
+
 		// and x8(second lit for IMUL_RCP), x18(spMix1), CacheSize / CacheLineSize - 1
 		// move the value into temp1.
 		// Load ScratchpadL3Mask64 into temp1
@@ -541,8 +543,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		for (size_t j = 0; j < progSize; ++j)
 		{
 			const Instruction& instr = prog(j);
-			const uint32_t src = IntRegMap[instr.src];
-			const uint32_t dst = IntRegMap[instr.dst];
+			const uint32_t src = IntRegMap_SuperScalar[instr.src];
+			const uint32_t dst = IntRegMap_SuperScalar[instr.dst];
 
 			switch (static_cast<SuperscalarInstructionType>(instr.opcode))
 			{
@@ -651,6 +653,32 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	p2 = (uint8_t*)randomx_calc_dataset_item_rv64_end;
 	memcpy(code + codePos, p1, p2 - p1);
 	codePos += p2 - p1;
+
+#ifdef PRINT_SUPERSCALAR_PROGRAM
+
+	uint8_t* px = (uint8_t*)randomx_calc_dataset_item_rv64;
+	uint8_t* py = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
+	uint32_t psize = py - px;
+
+	codePos = ((uint8_t*)randomx_init_dataset_rv64_end) - ((uint8_t*)randomx_program_rv64);
+	printf("SuperscalarHash program\n");
+	printf("Program Size %d\n", psize);
+	printf("codePos %x\n", codePos);
+	printf("##################################\n");
+	for (uint32_t x = 0; x < psize; x+=4)
+	{
+		printf("Opcode %x : %x \n", x+codePos, *(uint32_t *)(code + codePos + x) );
+	}
+	
+	codePos += psize;
+	printf("SuperscalarHash program2\n");
+	printf("##################################\n");
+	for (uint32_t x = 40000; x < 40600; x+=4) //1000 opcodes.. 
+	{
+		printf("Opcode %x : %x \n", x+codePos, *(uint32_t *)(code + codePos + x) );
+	}
+#endif
+
 
 
 }

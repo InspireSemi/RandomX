@@ -701,8 +701,8 @@ DECL(randomx_calc_dataset_item_rv64):
 
 	// rl[0] = (itemNumber + 1) * superscalarMul0;
 	// madd	a0, a2, t0, t0
+	addi a2, a2, 1
 	mul a0, a2, t0
-	add a0, a0, t0
 
 	// rl[1] = rl[0] ^ superscalarAdd1;
 	ld	t0, superscalarAdd1
@@ -754,10 +754,11 @@ DECL(randomx_calc_dataset_item_rv64_prefetch):
 	slli s3, s3, 6
 	add s3, s3, s0
 	
+
 	// Prefetch dataset data
 	// prfm	pldl2strm, [s3]
 
-	// Generated SuperScalar hash program goes here
+// Generated SuperScalar hash program goes here
 
 DECL(randomx_calc_dataset_item_rv64_mix):
 	ld t0,  0(s3)

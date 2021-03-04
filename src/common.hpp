@@ -43,6 +43,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Dumps the generated program after generateProgramLight() or generateProgram() is executed
 //#define PRINT_GEN_PROGRAM
 
+// Dumps the superscalar program after generateSuperscalarHash() is run.  This is a subset of the above #define
+//#define PRINT_SUPERSCALAR_PROGRAM
+
 // Prints the address of the DatasetInitFunc() function
 //#define DEBUG_MINING
 

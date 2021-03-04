@@ -68,6 +68,8 @@ void runTest(const char* name, bool condition, FUNC f) {
 int main() {
 	char testHash[32];
 
+	printf("RandomX Test Version 1.0.1_inspire\n");
+
 	//std::cout << "Allocating randomx_cache..." << std::endl;
 	cache = randomx_alloc_cache(RANDOMX_FLAG_DEFAULT);
 
@@ -149,18 +151,50 @@ int main() {
 #else
 		jit.enableAll();
 #endif
-		uint64_t datasetItem[8];		
+		uint64_t datasetItem[8];	
 		jit.getDatasetInitFunc()(cache, (uint8_t*)&datasetItem, 0, 1);
-		printf("datasetItem[0] = %lx\n", datasetItem[0]);
+		printf("\nPass1\n");
+		printf("datasetItem[0] = %lx\n",datasetItem[0]);
+		printf("datasetItem[1] = %lx\n",datasetItem[1]);
+		printf("datasetItem[2] = %lx\n",datasetItem[2]);
+		printf("datasetItem[3] = %lx\n",datasetItem[3]);
+		printf("datasetItem[4] = %lx\n",datasetItem[4]);
+		printf("datasetItem[5] = %lx\n",datasetItem[5]);
+		printf("datasetItem[6] = %lx\n",datasetItem[6]);
+		printf("datasetItem[7] = %lx\n",datasetItem[7]);
 		//assert(datasetItem[0] == 0x680588a85ae222db);
 		jit.getDatasetInitFunc()(cache, (uint8_t*)&datasetItem, 10000000, 10000001);
-		printf("datasetItem[0] = %lx\n", datasetItem[0]);
+		printf("\nPass2\n");
+		printf("datasetItem[0] = %lx\n",datasetItem[0]);
+		printf("datasetItem[1] = %lx\n",datasetItem[1]);
+		printf("datasetItem[2] = %lx\n",datasetItem[2]);
+		printf("datasetItem[3] = %lx\n",datasetItem[3]);
+		printf("datasetItem[4] = %lx\n",datasetItem[4]);
+		printf("datasetItem[5] = %lx\n",datasetItem[5]);
+		printf("datasetItem[6] = %lx\n",datasetItem[6]);
+		printf("datasetItem[7] = %lx\n",datasetItem[7]);
 		//assert(datasetItem[0] == 0x7943a1f6186ffb72);
 		jit.getDatasetInitFunc()(cache, (uint8_t*)&datasetItem, 20000000, 20000001);
-		printf("datasetItem[0] = %lx\n", datasetItem[0]);
+		printf("\nPass3\n");
+		printf("datasetItem[0] = %lx\n",datasetItem[0]);
+		printf("datasetItem[1] = %lx\n",datasetItem[1]);
+		printf("datasetItem[2] = %lx\n",datasetItem[2]);
+		printf("datasetItem[3] = %lx\n",datasetItem[3]);
+		printf("datasetItem[4] = %lx\n",datasetItem[4]);
+		printf("datasetItem[5] = %lx\n",datasetItem[5]);
+		printf("datasetItem[6] = %lx\n",datasetItem[6]);
+		printf("datasetItem[7] = %lx\n",datasetItem[7]);
 		//assert(datasetItem[0] == 0x9035244d718095e1);
 		jit.getDatasetInitFunc()(cache, (uint8_t*)&datasetItem, 30000000, 30000001);
-		printf("datasetItem[0] = %lx\n", datasetItem[0]);
+		printf("\nPass4\n");
+		printf("datasetItem[0] = %lx\n",datasetItem[0]);
+		printf("datasetItem[1] = %lx\n",datasetItem[1]);
+		printf("datasetItem[2] = %lx\n",datasetItem[2]);
+		printf("datasetItem[3] = %lx\n",datasetItem[3]);
+		printf("datasetItem[4] = %lx\n",datasetItem[4]);
+		printf("datasetItem[5] = %lx\n",datasetItem[5]);
+		printf("datasetItem[6] = %lx\n",datasetItem[6]);
+		printf("datasetItem[7] = %lx\n",datasetItem[7]);
 		//assert(datasetItem[0] == 0x145a5091f7853099);
 	});
 
