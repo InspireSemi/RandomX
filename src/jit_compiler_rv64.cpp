@@ -431,7 +431,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	//overwrites placeholders in asm
 	emit32( LUI(temp1, imm_hi), code, codePos ); 
 	// Add in the lower value so we have the mask in temp1
-	emit32(ADDI(temp1, temp1, imm_lo), code, codePos);
+	emit32(ADDIW(temp1, temp1, imm_lo), code, codePos);
 	// Add the mask to the Scratchpad Pointer
 	emit32(ADD(12, 12, temp1), code, codePos);
 
@@ -501,11 +501,11 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	num32bitLiterals = 64;
 	constexpr uint32_t temp0 = 26;
 	constexpr uint32_t temp1 = 27;
-	// Offset used for IMUL_RCP to load literal values
-	int32_t literal_offset = 0;
 
 	for (size_t i = 0; i < N; ++i)
 	{
+		// Offset used for IMUL_RCP to load literal values
+		int32_t literal_offset = 0;
 
 		// and x8(second lit for IMUL_RCP), x18(spMix1), CacheSize / CacheLineSize - 1
 		// move the value into temp1.
@@ -598,38 +598,13 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				break;
 			case randomx::SuperscalarInstructionType::IMUL_RCP:
 				{
-					// literal_pos = top of literal data
-					uint64_t literal_address = ((uint64_t)code + literal_pos);
-					const uint64_t literal_lo = literal_address & ((1 << 12) - 1);
-					const uint64_t literal_hi = literal_address >> 12;
-
-					const uint64_t literal_upper = literal_address >> 32;
-					const uint64_t literal_upper_lo = literal_upper & ((1 << 12) - 1);
-					const uint64_t literal_upper_hi = literal_upper >> 12;
-
-					// Load the upper value into temp1
-					emit32(LUI(temp1, literal_hi), code, codePos );
-					// literal_address is now in temp1
-					emit32(ADDIW(temp1, temp1, literal_lo), code, codePos);
-					// Clear out the upper 32 bits
-					emit32(SLLI(temp1, temp1, 32), code, codePos );
-					emit32(SRLI(temp1, temp1, 32), code, codePos );
-
-					// Load the upper value into temp0
-					emit32(LUI(temp0, literal_upper_hi), code, codePos );
-					// literal_address is now in temp0
-					emit32(ADDIW(temp0, temp0, literal_upper_lo), code, codePos);
-					// move these bits to the upper 32 bits
-					emit32(SLLI(temp0, temp0, 32), code, codePos );
-
-					// Or the two together to make one 64 bit address
-					emit32(ADD(temp1, temp0, temp1), code, codePos );
-
-					// Offset from base of literal values (literal_address)			
-					literal_offset &= 0xFFF;
-					// load 32b immediate reciprocal
-					emit32(LWU(temp0, temp1, literal_offset), code, codePos);  
+					const int32_t offset = (literal_pos + literal_offset) - codePos;
+					printf("offset %x\n", offset);
+					emit32( AUIPC(temp1, 0), code , codePos);
+					emit32( LWU(temp0, temp1, offset), code, codePos);
 					literal_offset += 4;
+
+	emit32(0xffffffff, code, codePos);
 
 					// mul dst, dst, temp0
 					emit32( MUL(dst,dst,temp0), code, codePos);
@@ -673,7 +648,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	codePos += psize;
 	printf("SuperscalarHash program2\n");
 	printf("##################################\n");
-	for (uint32_t x = 40000; x < 40600; x+=4) //1000 opcodes.. 
+	for (uint32_t x = 0; x < 1000; x+=4) //1000 opcodes.. 
 	{
 		printf("Opcode %x : %x \n", x+codePos, *(uint32_t *)(code + codePos + x) );
 	}
@@ -702,14 +677,19 @@ void JitCompilerRV64::emitMovImmediate(uint32_t dst, uint32_t imm, uint8_t* code
 {
 	uint32_t k = codePos;
 
-	const uint32_t imm_lo = imm & ((1 << 12) - 1);
-	const uint32_t imm_hi = imm >> 12;
+	uint32_t imm_lo = imm & ((1 << 12) - 1);
+	uint32_t imm_hi = imm >> 12;
 	constexpr uint32_t temp0 = 26;
-
+	// Check for upper bit (signed bit set)
+	if (imm_lo & 0x800)
+	{
+		imm_hi += 1;
+		imm_lo = imm_lo - 0x1000;
+	}
 	// Load the upper value into temp0
 	emit32( LUI(temp0, imm_hi), code, k );	
 	// Add the imm_hi + imm_lo -> dst
-	emit32(ADDI(dst, temp0, imm_lo), code, k);
+	emit32(ADDIW(dst, temp0, imm_lo), code, k);
 
 	codePos = k;
 }
@@ -718,16 +698,21 @@ void JitCompilerRV64::emitAddImmediate(uint32_t dst, uint32_t src, uint32_t imm,
 {
 	uint32_t k = codePos;
 
-	const uint32_t imm_lo = imm & ((1 << 12) - 1);
-	const uint32_t imm_hi = imm >> 12;
+	uint32_t imm_lo = imm & ((1 << 12) - 1);
+	uint32_t imm_hi = imm >> 12;
 	constexpr uint32_t temp1 = 27;
-
+	// Check for upper bit (signed bit set)
+	if (imm_lo & 0x800)
+	{
+		imm_hi += 1;
+		imm_lo = imm_lo - 0x1000;
+	}
 	if (imm_lo && imm_hi)
 	{
 		// Load the upper value into temp1
 		emit32( LUI(temp1, imm_hi), code, k );
 		// Add in the lower value so we have the imm in temp1
-		emit32(ADDI(temp1, temp1, imm_lo), code, k);
+		emit32(ADDIW(temp1, temp1, imm_lo), code, k);
 	}
 	else if (imm_lo)
 	{
@@ -763,10 +748,16 @@ void JitCompilerRV64::emitMemLoad(uint32_t dst, uint32_t src, Instruction& instr
 			emitAddImmediate(tmp, src, imm, code, k);
 			mask_lo = (RANDOMX_SCRATCHPAD_L1 - 8) & ((1 << 12) - 1);
 			mask_hi = (RANDOMX_SCRATCHPAD_L1 - 8) >> 12;
+			// Check for upper bit (signed bit set)
+			if (mask_lo & 0x800)
+			{
+				mask_hi += 1;
+				mask_lo = mask_lo - 0x1000;
+			}
 			// Load the upper value
 			emit32( LUI(temp1, mask_hi), code, k );
 			// Add in the lower value so we have the imm in temp1
-			emit32(ADDI(temp1, temp1, mask_lo), code, k);
+			emit32(ADDIW(temp1, temp1, mask_lo), code, k);
 			emit32( AND(tmp, tmp, temp1), code, k);			 
 		}
 		else { //Mod.mem==0, load from L2
@@ -774,10 +765,16 @@ void JitCompilerRV64::emitMemLoad(uint32_t dst, uint32_t src, Instruction& instr
 			emitAddImmediate(tmp, src, imm, code, k);
 			mask_lo = (RANDOMX_SCRATCHPAD_L2 - 8) & ((1 << 12) - 1);
 			mask_hi = (RANDOMX_SCRATCHPAD_L2 - 8) >> 12;
+			// Check for upper bit (signed bit set)
+			if (mask_lo & 0x800)
+			{
+				mask_hi += 1;
+				mask_lo = mask_lo - 0x1000;
+			}			
 			// Load the upper value
 			emit32( LUI(temp1, mask_hi), code, k );
 			// Add in the lower value so we have the imm in temp1
-			emit32(ADDI(temp1, temp1, mask_lo), code, k);
+			emit32(ADDIW(temp1, temp1, mask_lo), code, k);
 			emit32( AND(tmp, tmp, temp1), code, k);
 		}
 	}
@@ -815,10 +812,16 @@ void JitCompilerRV64::emitMemLoadFP(uint32_t src, Instruction& instr, uint8_t* c
 		emitAddImmediate(temp0, src, imm, code, k);
 		mask_lo = (RANDOMX_SCRATCHPAD_L1 - 8) & ((1 << 12) - 1);
 		mask_hi = (RANDOMX_SCRATCHPAD_L1 - 8) >> 12;
+		// Check for upper bit (signed bit set)
+		if (mask_lo & 0x800)
+		{
+			mask_hi += 1;
+			mask_lo = mask_lo - 0x1000;
+		}		
 		// Load the upper value
 		emit32( LUI(temp1, mask_hi), code, k );
 		// Add in the lower value so we have the imm in temp1
-		emit32(ADDI(temp1, temp1, mask_lo), code, k);
+		emit32(ADDIW(temp1, temp1, mask_lo), code, k);
 		emit32( AND(temp0, temp0, temp1), code, k);	
 	}
 	else { //Mod.mem==0, load from L2
@@ -826,10 +829,16 @@ void JitCompilerRV64::emitMemLoadFP(uint32_t src, Instruction& instr, uint8_t* c
 		emitAddImmediate(temp0, src, imm, code, k);
 		mask_lo = (RANDOMX_SCRATCHPAD_L2 - 8) & ((1 << 12) - 1);
 		mask_hi = (RANDOMX_SCRATCHPAD_L2 - 8) >> 12;
+		// Check for upper bit (signed bit set)
+		if (mask_lo & 0x800)
+		{
+			mask_hi += 1;
+			mask_lo = mask_lo - 0x1000;
+		}		
 		// Load the upper value
 		emit32( LUI(temp1, mask_hi), code, k );
 		// Add in the lower value so we have the imm in temp1
-		emit32(ADDI(temp1, temp1, mask_lo), code, k);
+		emit32(ADDIW(temp1, temp1, mask_lo), code, k);
 		emit32( AND(temp0, temp0, temp1), code, k);
 	}
 
@@ -1061,7 +1070,7 @@ void JitCompilerRV64::h_IMUL_RCP(Instruction& instr, uint32_t& codePos)
 	else
 	{
 		// ldr tmp, reciprocal
-		const uint32_t offset = (literalPos - k) / 4;
+		const uint32_t offset = (literalPos - k);
 		emit32( AUIPC(tmp1, 0), code , k);
 		emit32( LD(tmp, tmp1, offset), code, k);
 
