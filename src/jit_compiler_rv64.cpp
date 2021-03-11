@@ -580,9 +580,9 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 					rori_amt = instr.getImm32() & 0x3F; // limit imm to 6 bits, 0x3f or less
 					//printf("IROR_C masked %x\n", rori_amt);
 					//printf("IROR_C unmasked %x\n", instr.getImm32());
-					emit32( ORI(tmp0, 0, 63), code, codePos); // temp0 now has 63
+					emit32( ORI(tmp0, 0, 64), code, codePos); // temp0 now has 64
 					emit32( ORI(tmp1, 0, rori_amt), code, codePos); // temp1 now has imm
-					emit32( SUB(tmp1, tmp0, tmp1), code, codePos); // temp1 now has 63 - imm
+					emit32( SUB(tmp1, tmp0, tmp1), code, codePos); // temp1 now has 64 - imm
 					emit32( SRLI(tmp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
 					emit32( SLL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
 					emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
