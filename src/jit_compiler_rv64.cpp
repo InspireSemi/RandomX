@@ -515,12 +515,14 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		emit32(ADDIW(temp1, temp1, CacheSizeMask_lo), code, codePos);
 		emit32(AND(19, 18, temp1), code, codePos);
 
-		//emit32(0xffffffff, code, codePos);
+//emit32(0xffffffff, code, codePos);
 
 		p1 = ((uint8_t*)randomx_calc_dataset_item_rv64_prefetch) + 12;
 		p2 = (uint8_t*)randomx_calc_dataset_item_rv64_mix;
 		memcpy(code + codePos, p1, p2 - p1);
 		codePos += p2 - p1;
+
+//emit32(0xffffffff, code, codePos);
 
 		SuperscalarProgram& prog = programs[i];
 		const size_t progSize = prog.getSize();
@@ -533,12 +535,17 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		{
 			const Instruction& instr = prog(j);
 			if (static_cast<SuperscalarInstructionType>(instr.opcode) == randomx::SuperscalarInstructionType::IMUL_RCP)
+			{
 				emit64(reciprocalCache[instr.getImm32()], code, codePos);
+				//printf("IMUL_RCP %d %x\n", j, reciprocalCache[instr.getImm32()]);
+			}
 		}
 
 		// Jump over literal pool
 		uint32_t literal_pos = jmp_pos;
 		emit32(JAL(0, (codePos - jmp_pos)), code, literal_pos);
+
+		printf("progSize %x\n", progSize);
 
 		for (size_t j = 0; j < progSize; ++j)
 		{
@@ -549,9 +556,11 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 			switch (static_cast<SuperscalarInstructionType>(instr.opcode))
 			{
 			case randomx::SuperscalarInstructionType::ISUB_R:
+				//printf("ISUB_R\n");
 				emit32( SUB(dst,dst,src), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IXOR_R:
+				//printf("IXOR_R\n");
 				emit32( XOR(dst, dst, src), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IADD_RS:
@@ -567,9 +576,11 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				}
 				break;
 			case randomx::SuperscalarInstructionType::IMUL_R:
+				//printf("IMUL_R\n");
 				emit32( MUL(dst, dst, src), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IROR_C:
+				//printf("IROR_C\n");
 #ifdef BITMANIP			
 				emit32( RORI(dst, dst, (instr.getImm32() & 0x3F )), code, codePos);
 #else
@@ -590,21 +601,28 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 			case randomx::SuperscalarInstructionType::IADD_C7:
 			case randomx::SuperscalarInstructionType::IADD_C8:
 			case randomx::SuperscalarInstructionType::IADD_C9:
+				//printf("IADD_C9\n");
 				emitAddImmediate(dst, dst, instr.getImm32(), code, codePos);
+				//printf("IADD_C7/C8/C9 %x\n", instr.getImm32());
 				break;
 			case randomx::SuperscalarInstructionType::IXOR_C7:
 			case randomx::SuperscalarInstructionType::IXOR_C8:
 			case randomx::SuperscalarInstructionType::IXOR_C9:
+				//printf("IXOR_C9\n");
 				emitMovImmediate(temp0, instr.getImm32(), code, codePos);
+				//printf("IXOR_C7/C8/C9 %x\n", instr.getImm32());
 				emit32(XOR(dst, dst, temp0), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IMULH_R:
+				//printf("IMULH_R\n");
 				emit32( MULHU(dst, dst, src), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::ISMULH_R:
+				//printf("ISMULH_R\n");
 				emit32( MULHS(dst, dst, src), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IMUL_RCP:
+				//printf("IMUL_RCP\n");
 				{
 					//This will be a 64 bit address
 					int64_t literal_addr = ((uint64_t)code + (literal_pos + literal_offset));
@@ -636,7 +654,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 						literal_addr_E = literal_addr_E - 0x1000;
 					}
 
-					printf("literal address %lx\n", literal_addr);
+					//printf("literal address %lx\n", literal_addr);
 					//printf("literal address A %lx\n", literal_addr_A);
 					//printf("literal address B %lx\n", literal_addr_B);
 					//printf("literal address C %lx\n", literal_addr_C);
@@ -651,12 +669,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 					emit32(ADDI(temp1, temp1, literal_addr_D), code, codePos);
 					emit32(SLLI(temp1, temp1, 0xC), code, codePos);
 					emit32(ADDI(temp1, temp1, literal_addr_E), code, codePos);
-					
 					emit32( LWU(temp0, temp1, 0), code, codePos);
 					literal_offset += 4;
-
-	emit32(0xffffffff, code, codePos);
-
 					// mul dst, dst, temp0
 					emit32( MUL(dst,dst,temp0), code, codePos);
 				}
@@ -665,6 +679,10 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				break;
 			}
 		}
+		printf("CodePos after gen prog %lx\n", codePos);
+
+
+//emit32(0xffffffff, code, codePos);
 
 		p1 = (uint8_t*)randomx_calc_dataset_item_rv64_mix;
 		p2 = (uint8_t*)randomx_calc_dataset_item_rv64_store_result;
@@ -679,6 +697,9 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	p2 = (uint8_t*)randomx_calc_dataset_item_rv64_end;
 	memcpy(code + codePos, p1, p2 - p1);
 	codePos += p2 - p1;
+
+	printf("code & codePos %lx %lx\n", code, codePos);
+	printf("Allocated memory %lx %lx %lx\n", CodeSize, CalcDatasetItemSize,  CodeSize + CalcDatasetItemSize);
 
 #ifdef PRINT_SUPERSCALAR_PROGRAM
 
@@ -704,9 +725,6 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		printf("Opcode %x : %x \n", x+codePos, *(uint32_t *)(code + codePos + x) );
 	}
 #endif
-
-
-
 }
 
 template void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[RANDOMX_CACHE_ACCESSES], std::vector<uint64_t> &reciprocalCache);

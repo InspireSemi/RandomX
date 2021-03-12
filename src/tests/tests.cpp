@@ -152,7 +152,7 @@ int main() {
 		jit.enableAll();
 #endif
 		volatile uint64_t datasetItem[8] = {0};
-		printf("datasetItem ptr %lx, %p\n", &datasetItem, datasetItem);
+		//printf("datasetItem ptr %lx, %p\n", &datasetItem, datasetItem);
 		printf("\nPass0\n");
 		printf("datasetItem[0] = %lx\n",datasetItem[0]);
 		printf("datasetItem[1] = %lx\n",datasetItem[1]);
@@ -161,7 +161,9 @@ int main() {
 		printf("datasetItem[4] = %lx\n",datasetItem[4]);
 		printf("datasetItem[5] = %lx\n",datasetItem[5]);
 		printf("datasetItem[6] = %lx\n",datasetItem[6]);
-		printf("datasetItem[7] = %lx\n",datasetItem[7]);	
+		printf("datasetItem[7] = %lx\n",datasetItem[7]);
+		printf("Cache %x\n", *(uint32_t *)cache->memory);
+
 		jit.getDatasetInitFunc()(cache, (uint8_t*)&datasetItem, 0, 1);
 		printf("\nPass1\n");
 		printf("datasetItem[0] = %lx\n",datasetItem[0]);

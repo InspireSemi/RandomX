@@ -161,6 +161,10 @@ namespace randomx {
 
 	static inline uint8_t* getMixBlock(uint64_t registerValue, uint8_t *memory) {
 		constexpr uint32_t mask = CacheSize / CacheLineSize - 1;
+		//printf("(registerValue & mask) * CacheLineSize %x\n", (registerValue & mask) * CacheLineSize);
+		//printf("registerValue %x\n", registerValue);
+		//printf("mask %x\n", mask);
+		//printf("CacheLineSize %x\n", CacheLineSize);
 		return memory + (registerValue & mask) * CacheLineSize;
 	}
 
@@ -178,6 +182,7 @@ namespace randomx {
 		rl[7] = rl[0] ^ superscalarAdd7;
 		for (unsigned i = 0; i < RANDOMX_CACHE_ACCESSES; ++i) {
 			mixBlock = getMixBlock(registerValue, cache->memory);
+			//printf("mixBlock %x\n", *(uint32_t *)mixBlock);
 			rx_prefetch_nta(mixBlock);
 			SuperscalarProgram& prog = cache->programs[i];
 
