@@ -481,7 +481,6 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 {
 	uint32_t codePos = CodeSize;
 
-
 	uint8_t* p1 = (uint8_t*)randomx_calc_dataset_item_rv64;
 	uint8_t* p2 = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
 	// These values are calculated from the ARM code AND opcodes using the following web pages:
@@ -505,10 +504,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 
 	for (size_t i = 0; i < N; ++i)
 	{
-		//printf("generateSuperscalarHash\n");
-
 		// Offset used for IMUL_RCP to load literal values
-		int32_t literal_offset = 0;
+		uint32_t literal_offset = 0;
 
 		// and x8(second lit for IMUL_RCP), x18(spMix1), CacheSize / CacheLineSize - 1
 		// move the value into temp1.
@@ -518,8 +515,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		emit32(ADDIW(temp1, temp1, CacheSizeMask_lo), code, codePos);
 		emit32(AND(19, 18, temp1), code, codePos);
 
-		
-//emit32(0xffffffff, code, codePos);
+		//emit32(0xffffffff, code, codePos);
 
 		p1 = ((uint8_t*)randomx_calc_dataset_item_rv64_prefetch) + 12;
 		p2 = (uint8_t*)randomx_calc_dataset_item_rv64_mix;
@@ -559,8 +555,16 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				emit32( XOR(dst, dst, src), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IADD_RS:
-				emit32(SLLI(temp0, src, instr.getModShift()), code, codePos);
-				emit32(ADD(dst, dst, temp0), code, codePos);
+				//printf("IADD_RS\n");
+				if ( instr.getModShift() == 0 )
+				{
+					emit32(ADD(dst, dst, src), code, codePos);
+				}
+				else
+				{
+					emit32(SLLI(temp0, src, instr.getModShift()), code, codePos);
+					emit32(ADD(dst, dst, temp0), code, codePos);
+				}
 				break;
 			case randomx::SuperscalarInstructionType::IMUL_R:
 				emit32( MUL(dst, dst, src), code, codePos);
@@ -569,18 +573,18 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 #ifdef BITMANIP			
 				emit32( RORI(dst, dst, (instr.getImm32() & 0x3F )), code, codePos);
 #else
-				{
-					constexpr uint32_t tmp0 = 26;
-					constexpr uint32_t tmp1 = 27;
-					uint32_t rori_amt;
-					rori_amt = instr.getImm32() & 0x3F; // limit imm to 6 bits, 0x3f or less
-					emit32( ORI(tmp0, 0, 64), code, codePos); // temp0 now has 64
-					emit32( ORI(tmp1, 0, rori_amt), code, codePos); // temp1 now has imm
-					emit32( SUB(tmp1, tmp0, tmp1), code, codePos); // temp1 now has 64 - imm
-					emit32( SRLI(tmp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
-					emit32( SLL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
-					emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
-				}				
+#if 1
+				uint32_t rori_amt;
+				rori_amt = instr.getImm32() & 0x3F; // limit imm to 6 bits, 0x3f or less
+				//printf("IROR_C masked %x\n", rori_amt);
+				//printf("IROR_C unmasked %x\n", instr.getImm32());
+				emit32( ORI(temp0, 0, 64), code, codePos); // temp0 now has 64
+				emit32( ORI(temp1, 0, rori_amt), code, codePos); // temp1 now has imm
+				emit32( SUB(temp1, temp0, temp1), code, codePos); // temp1 now has 64 - imm
+				emit32( SRLI(temp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
+				emit32( SLL(dst, dst, temp1), code, codePos); // shift the dst left and put it into dst
+				emit32( OR(dst, dst, temp0), code, codePos); // Now OR the two values together to get the ror
+#endif				
 #endif
 				break;
 			case randomx::SuperscalarInstructionType::IADD_C7:
@@ -601,20 +605,60 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				emit32( MULHS(dst, dst, src), code, codePos);
 				break;
 			case randomx::SuperscalarInstructionType::IMUL_RCP:
-				{					
-					const int32_t offset = (literal_pos + literal_offset) - codePos;
-					//printf("offset %x\n", offset);
-					//printf("literal_pos %x\n", literal_pos);
-					//printf("literal_offset %x\n", literal_offset);
-					//printf("codePos %x\n", codePos);
-					emit32( AUIPC(temp1, 0), code , codePos);
-					emit32( LWU(temp0, temp1, offset), code, codePos);
+				{
+					//This will be a 64 bit address
+					int64_t literal_addr = ((uint64_t)code + (literal_pos + literal_offset));
+					int64_t literal_addr_A, literal_addr_B, literal_addr_C, literal_addr_D, literal_addr_E;
+
+					literal_addr_A = literal_addr >> 48; 
+					literal_addr_B = (literal_addr & 0x0000fff000000000) >> 36;
+					literal_addr_C = (literal_addr & 0x0000000fff000000) >> 24;
+					literal_addr_D = (literal_addr & 0x0000000000fff000) >> 12;
+					literal_addr_E = (literal_addr & 0x0000000000000fff); 
+					if (literal_addr_B & 0x800)
+					{
+						literal_addr_A +=1;
+						literal_addr_B = literal_addr_B - 0x1000;
+					}
+					if (literal_addr_C & 0x800)
+					{
+						literal_addr_B +=1;
+						literal_addr_C = literal_addr_C - 0x1000;
+					}
+					if (literal_addr_D & 0x800)
+					{
+						literal_addr_C +=1;
+						literal_addr_D = literal_addr_D - 0x1000;
+					}
+					if (literal_addr_E & 0x800)
+					{
+						literal_addr_D +=1;
+						literal_addr_E = literal_addr_E - 0x1000;
+					}
+
+					printf("literal address %lx\n", literal_addr);
+					//printf("literal address A %lx\n", literal_addr_A);
+					//printf("literal address B %lx\n", literal_addr_B);
+					//printf("literal address C %lx\n", literal_addr_C);
+					//printf("literal address D %lx\n", literal_addr_D);
+					//printf("literal address E %lx\n", literal_addr_E);
+
+					emit32( LUI(temp1, literal_addr_A), code, codePos );
+					emit32(ADDIW(temp1, temp1, literal_addr_B), code, codePos);
+					emit32(SLLI(temp1, temp1, 0xC), code, codePos);
+					emit32(ADDI(temp1, temp1, literal_addr_C), code, codePos);
+					emit32(SLLI(temp1, temp1, 0xC), code, codePos);
+					emit32(ADDI(temp1, temp1, literal_addr_D), code, codePos);
+					emit32(SLLI(temp1, temp1, 0xC), code, codePos);
+					emit32(ADDI(temp1, temp1, literal_addr_E), code, codePos);
+					
+					emit32( LWU(temp0, temp1, 0), code, codePos);
 					literal_offset += 4;
 
-	//emit32(0xffffffff, code, codePos);
+	emit32(0xffffffff, code, codePos);
 
 					// mul dst, dst, temp0
-					emit32( MUL(dst,dst,temp0), code, codePos);				
+					emit32( MUL(dst,dst,temp0), code, codePos);
 				}
 				break;
 			default:
@@ -631,8 +675,6 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		emit32(ADDI(18, prog.getAddressRegister(), 0), code, codePos);
 	}
 
-	//emit32(0xffffffff, code, codePos);
-
 	p1 = (uint8_t*)randomx_calc_dataset_item_rv64_store_result;
 	p2 = (uint8_t*)randomx_calc_dataset_item_rv64_end;
 	memcpy(code + codePos, p1, p2 - p1);
@@ -641,7 +683,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 #ifdef PRINT_SUPERSCALAR_PROGRAM
 
 	uint8_t* px = (uint8_t*)randomx_calc_dataset_item_rv64;
-	uint8_t* py = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
+	uint8_t* py = (uint8_t*)randomx_calc_dataset_item_rv64_end;
 	uint32_t psize = py - px;
 
 	codePos = ((uint8_t*)randomx_init_dataset_rv64_end) - ((uint8_t*)randomx_program_rv64);
@@ -730,7 +772,7 @@ void JitCompilerRV64::emitAddImmediate(uint32_t dst, uint32_t src, uint32_t imm,
 	}
 	else
 	{
-		// Load the upper value into temp0
+		// Load the upper value into temp1
 		emit32( LUI(temp1, imm_hi), code, k );
 	}
 
