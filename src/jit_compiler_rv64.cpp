@@ -573,20 +573,18 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 #ifdef BITMANIP			
 				emit32( RORI(dst, dst, (instr.getImm32() & 0x3F )), code, codePos);
 #else
-				{
-					constexpr uint32_t tmp0 = 26;
-					constexpr uint32_t tmp1 = 27;
-					uint32_t rori_amt;
-					rori_amt = instr.getImm32() & 0x3F; // limit imm to 6 bits, 0x3f or less
-					//printf("IROR_C masked %x\n", rori_amt);
-					//printf("IROR_C unmasked %x\n", instr.getImm32());
-					emit32( ORI(tmp0, 0, 64), code, codePos); // temp0 now has 64
-					emit32( ORI(tmp1, 0, rori_amt), code, codePos); // temp1 now has imm
-					emit32( SUB(tmp1, tmp0, tmp1), code, codePos); // temp1 now has 64 - imm
-					emit32( SRLI(tmp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
-					emit32( SLL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
-					emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
-				}
+#if 1
+				uint32_t rori_amt;
+				rori_amt = instr.getImm32() & 0x3F; // limit imm to 6 bits, 0x3f or less
+				//printf("IROR_C masked %x\n", rori_amt);
+				//printf("IROR_C unmasked %x\n", instr.getImm32());
+				emit32( ORI(temp0, 0, 64), code, codePos); // temp0 now has 64
+				emit32( ORI(temp1, 0, rori_amt), code, codePos); // temp1 now has imm
+				emit32( SUB(temp1, temp0, temp1), code, codePos); // temp1 now has 64 - imm
+				emit32( SRLI(temp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
+				emit32( SLL(dst, dst, temp1), code, codePos); // shift the dst left and put it into dst
+				emit32( OR(dst, dst, temp0), code, codePos); // Now OR the two values together to get the ror
+#endif				
 #endif
 				break;
 			case randomx::SuperscalarInstructionType::IADD_C7:
@@ -685,7 +683,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 #ifdef PRINT_SUPERSCALAR_PROGRAM
 
 	uint8_t* px = (uint8_t*)randomx_calc_dataset_item_rv64;
-	uint8_t* py = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
+	uint8_t* py = (uint8_t*)randomx_calc_dataset_item_rv64_end;
 	uint32_t psize = py - px;
 
 	codePos = ((uint8_t*)randomx_init_dataset_rv64_end) - ((uint8_t*)randomx_program_rv64);
