@@ -70,7 +70,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MUL(rd,rs1,rs2)   0b0000001<<25 | rs2<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b0110011
 #define MULHU(rd,rs1,rs2) 0b0000001<<25 | rs2<<20 | rs1<<15 | 0b011<<12 | rd<<7 | 0b0110011
 #define MULHS(rd,rs1,rs2) 0b0000001<<25 | rs2<<20 | rs1<<15 | 0b001<<12 | rd<<7 | 0b0110011
-#define OR(rd,rs1,rs2)    0b0000000<<25 | rs2<<20 | rs1<<15 | 0b111<<12 | rd<<7 | 0b0110011
+#define OR(rd,rs1,rs2)    0b0000000<<25 | rs2<<20 | rs1<<15 | 0b110<<12 | rd<<7 | 0b0110011
 #define ORI(rd, rs1, imm) imm<<20 | rs1<<15 | 0b110<<12 | rd<<7 | 0b0010011
 
 #define CSRRW(rd,csr,rs1)                 csr<<20 | rs1<<15 | 0b001<<12 | rd<<7 | 0b1110011
@@ -530,7 +530,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		uint32_t literal_pos = jmp_pos;
 		emit32(JAL(0, (codePos - jmp_pos)), code, literal_pos);
 
-		printf("progSize %x\n", progSize);
+		//printf("progSize %x\n", progSize);
 
 		for (size_t j = 0; j < progSize; ++j)
 		{
@@ -569,7 +569,6 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 #ifdef BITMANIP			
 				emit32( RORI(dst, dst, (instr.getImm32() & 0x3F )), code, codePos);
 #else
-#if 1
 				uint32_t rori_amt;
 				rori_amt = instr.getImm32() & 0x3F; // limit imm to 6 bits, 0x3f or less
 				//printf("IROR_C masked %x\n", rori_amt);
@@ -578,9 +577,9 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				emit32( ORI(temp1, 0, rori_amt), code, codePos); // temp1 now has imm
 				emit32( SUB(temp1, temp0, temp1), code, codePos); // temp1 now has 64 - imm
 				emit32( SRLI(temp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
-				emit32( SLL(dst, dst, temp1), code, codePos); // shift the dst left and put it into dst
-				emit32( OR(dst, dst, temp0), code, codePos); // Now OR the two values together to get the ror
-#endif				
+				emit32( SLL(temp1, dst, temp1), code, codePos); // shift the dst left and put it into dst
+				emit32( OR(dst, temp1, temp0), code, codePos); // Now OR the two values together to get the ror
+				//emit32(0xffffffff, code, codePos);				
 #endif
 				break;
 			case randomx::SuperscalarInstructionType::IADD_C7:
@@ -664,7 +663,7 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 				break;
 			}
 		}
-		printf("CodePos after gen prog %lx\n", codePos);
+		//printf("CodePos after gen prog %lx\n", codePos);
 
 
 //emit32(0xffffffff, code, codePos);
@@ -683,8 +682,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	memcpy(code + codePos, p1, p2 - p1);
 	codePos += p2 - p1;
 
-	printf("code & codePos %lx %lx\n", code, codePos);
-	printf("Allocated memory %lx %lx %lx\n", CodeSize, CalcDatasetItemSize,  CodeSize + CalcDatasetItemSize);
+	//printf("code & codePos %lx %lx\n", code, codePos);
+	//printf("Allocated memory %lx %lx %lx\n", CodeSize, CalcDatasetItemSize,  CodeSize + CalcDatasetItemSize);
 
 #ifdef PRINT_SUPERSCALAR_PROGRAM
 
@@ -899,10 +898,10 @@ void JitCompilerRV64::emitMemLoadFP(uint32_t src, Instruction& instr, uint8_t* c
 	// Add temp0 to pointer to scratchpad
 	emit32(ADD(temp0, 6, temp0), code, k);
 	
-	emit32(LW(temp1, temp0, 0), code, k); //load lower word to int reg for conversion
+	emit32(LWU(temp1, temp0, 0), code, k); //load lower word to int reg for conversion
 	emit32(FCVTDW(tmp_fp, temp1, 7), code, k); //convert int32 to double
 
-	emit32(LW(temp1, temp0, 4), code, k); //load upper word
+	emit32(LWU(temp1, temp0, 4), code, k); //load upper word
 	emit32(FCVTDW(tmp_fp+1, temp1, 7), code, k); //convert int32 to double
 
 	//caller will complete conversion masking (different for mul or add/sub)
