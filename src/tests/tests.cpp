@@ -1174,6 +1174,7 @@ int main() {
 		std::cout << " Hash " << std::endl;
 		outputHex(std::cout, (const char*)hash, sizeof(hash));
 		std::cout << std::endl;
+		printf("Should be 300a0adb47603dedb42228ccb2b211104f4da45af709cd7547cd049e9489c969\n");
 
 		//assert(equalsHex(hash, "300a0adb47603dedb42228ccb2b211104f4da45af709cd7547cd049e9489c969"));
 		//assert(rx_get_rounding_mode() == RoundToNearest);
