@@ -198,12 +198,7 @@ void JitCompilerRV64::enableAll()
 void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& config)
 {
 	uint32_t codePos = MainLoopBegin + 4;
-	// These values are calculated from the ARM code AND opcodes using the following web pages:
-	// https://gist.github.com/dinfuehr/51a01ac58c0b23e4de9aac313ed6a06a
-	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
-	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
-	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
-	//const uint32_t ScpadL3Mask64 = 0x1fffc0;
+	// Using the #define from the interpreted code
 	uint32_t ScpadL3Mask64_hi = ScratchpadL3Mask64 >> 12; //0x200; 
 	uint32_t ScpadL3Mask64_lo = ScratchpadL3Mask64 & ((1 << 12) - 1); //-64;
 	if (ScpadL3Mask64_lo & 0x800)
@@ -342,12 +337,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	uint32_t spMix1 = 18;
 	uint32_t spAddr1 = 25;
 	uint32_t spPtr = 6;
-	// These values are calculated from the ARM code AND opcodes using the following web pages:
-	// https://gist.github.com/dinfuehr/51a01ac58c0b23e4de9aac313ed6a06a
-	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
-	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
-	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
-	//const uint32_t ScpadL3Mask64 = 0x1fffc0;
+	// Using the #define from the interpreted code
 	uint32_t ScpadL3Mask64_hi = ScratchpadL3Mask64 >> 12; //0x200; 
 	uint32_t ScpadL3Mask64_lo = ScratchpadL3Mask64 & ((1 << 12) - 1); //-64;
 	if (ScpadL3Mask64_lo & 0x800)
@@ -483,13 +473,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 
 	uint8_t* p1 = (uint8_t*)randomx_calc_dataset_item_rv64;
 	uint8_t* p2 = (uint8_t*)randomx_calc_dataset_item_rv64_prefetch;
-	// These values are calculated from the ARM code AND opcodes using the following web pages:
-	// https://gist.github.com/dinfuehr/51a01ac58c0b23e4de9aac313ed6a06a
-	// https://dinfuehr.github.io/blog/encoding-of-immediate-values-on-aarch64/
-	// https://www.calculator.net/log-calculator.html?xv=2147483648&base=2&yv=&x=43&y=23
-	// And the ARM Architecture Reference Manual Armv8, for Armv8-A architecure profile
-	// This is based on the CacheSize / CacheLineSize - 1 calculation and the ARM Opcode
-	// and x11, x10, CacheSize / CacheLineSize - 1
+	// Using the #define from the interpreted code
+	// This is based on the CacheSize / CacheLineSize - 1 calculation
 	// If either cacheSize or CacheLineSize changes this must be recalculated.
 	//const uint32_t CacheSizeMask = 0x3fffff;
 	uint32_t CacheSizeMask_hi = 0x400; 
