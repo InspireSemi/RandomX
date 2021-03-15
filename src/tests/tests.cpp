@@ -1149,14 +1149,17 @@ int main() {
 		std::cout << " Hash1 " << std::endl;
 		outputHex(std::cout, (const char*)hash1, sizeof(hash1));
 		std::cout << std::endl;
+		printf("Should be 639183aae1bf4c9a35884cb46b09cad9175f04efd7684e7262a0ac1c2f0b4e3f\n");
 
 		std::cout << " Hash2 " << std::endl;
 		outputHex(std::cout, (const char*)hash2, sizeof(hash2));
 		std::cout << std::endl;
+		printf("Should be 300a0adb47603dedb42228ccb2b211104f4da45af709cd7547cd049e9489c969\n");
 
 		std::cout << " Hash3 " << std::endl;
 		outputHex(std::cout, (const char*)hash3, sizeof(hash3));
 		std::cout << std::endl;
+		printf("Should be c36d4ed4191e617309867ed66a443be4075014e2b061bcdaf9ce7b721d2b77a8\n");
 
 		//assert(equalsHex(hash1, "639183aae1bf4c9a35884cb46b09cad9175f04efd7684e7262a0ac1c2f0b4e3f"));
 		///assert(equalsHex(hash2, "300a0adb47603dedb42228ccb2b211104f4da45af709cd7547cd049e9489c969"));
