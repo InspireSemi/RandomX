@@ -116,8 +116,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define FMUL_D(rd,rs1,rs2,rm) 0b0001001<<25 | rs2<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
 #define FDIV_D(rd,rs1,rs2,rm) 0b0001101<<25 | rs2<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
 #define FSQRT_D(rd,rs1,rm)    0b0101101<<25 | rs1<<15 |           rm<<12 | rd<<7 | 0b1010011
-#define FCVTDW(rd,rs1,rm)     0b1101001<<25 | 0b0<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
+#define FCVTWD(rd,rs1,rm)     0b1101001<<25 | 0b0<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
 #define FSGNJ_D(rd,rs1,rs2)   0b0010001<<25 | rs2<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b1010011
+#define FCTVLD(rd, rs1, rm)   0b1100001<<25 | 0b00010<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
+#define FCTVLUD(rd, rs1, rm)  0b1100001<<25 | 0b00011<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
+
 
 #define FMV_X_D(rd, rs1)	  0b1110001<<25 | 0b0000 << 20 | rs1 << 15 | 0b000 << 12 | rd << 7 | 0b1010011
 #define FMV_D_X(rd, rs1)	  0b1111001<<25 | 0b0000 << 20 | rs1 << 15 | 0b000 << 12 | rd << 7 | 0b1010011
@@ -400,7 +403,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	emit32(AND(12, 9, temp1), code, codePos);
 
 	// Update spMix1
-	// eor x10, config.readReg0, config.readReg1
+	// eor x18, config.readReg0, config.readReg1
 	codePos = ((uint8_t*)randomx_program_rv64_update_spMix1) - ((uint8_t*)randomx_program_rv64);
 	emit32( XOR(18, IntRegMap[config.readReg0], IntRegMap[config.readReg1]), code, codePos);
 
@@ -422,7 +425,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	emit32( LUI(temp1, imm_hi), code, codePos ); 
 	// Add in the lower value so we have the mask in temp1
 	emit32(ADDIW(temp1, temp1, imm_lo), code, codePos);
-	// Add the mask to the Scratchpad Pointer
+	// Add the mask to the a2
 	emit32(ADD(12, 12, temp1), code, codePos);
 
 #ifdef PRINT_GEN_PROGRAM
@@ -634,12 +637,8 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 					emit32(ADDI(temp1, temp1, literal_addr_D), code, codePos);
 					emit32(SLLI(temp1, temp1, 0xC), code, codePos);
 					emit32(ADDI(temp1, temp1, literal_addr_E), code, codePos);
-					
-					emit32( LWU(temp0, temp1, 0), code, codePos);
-					literal_offset += 4;
-
-	emit32(0xffffffff, code, codePos);
-
+					emit32(LD(temp0, temp1, 0), code, codePos);
+					literal_offset += 8;
 					// mul dst, dst, temp0
 					emit32( MUL(dst,dst,temp0), code, codePos);
 				}
@@ -811,20 +810,27 @@ void JitCompilerRV64::emitMemLoad(uint32_t dst, uint32_t src, Instruction& instr
 			emit32(ADDIW(temp1, temp1, mask_lo), code, k);
 			emit32( AND(tmp, tmp, temp1), code, k);
 		}
+
+		// Add tmp to pointer to scratchpad put into tmp
+		emit32(ADD(tmp, 6, tmp), code, k);
+
+		// Load into tmp 
+		emit32(LD(tmp, tmp, 0), code, k);
+
 	}
 	else //src==dst, load from L3 scratch range
 	{
-		// Clear out lower 3 bits. No idea why ARM was doing this...??
-		imm = (imm & ScratchpadL3Mask) >> 3;
-		imm = (imm & ScratchpadL3Mask) << 3;
+		imm = (imm & ScratchpadL3Mask); // ScratchpadL3Mask = 0x1FFFF8
+		
 		emitMovImmediate(tmp, imm, code, k);
+		
+		// Add tmp to pointer to scratchpad put into tmp
+		emit32(ADD(tmp, 6, tmp), code, k);
+
+		// Load into tmp 
+		emit32(LD(tmp, tmp, 0), code, k);		
+
 	}
-
-	// Add temp0 to pointer to scratchpad
-	//emit32(ADD(tmp, 6, tmp), code, k);
-
-	// Load from scratchpad into dst 
-	//emit32(LD(dst, tmp, 0), code, k);
 
 	codePos = k;
 }
@@ -879,13 +885,14 @@ void JitCompilerRV64::emitMemLoadFP(uint32_t src, Instruction& instr, uint8_t* c
 	// Add temp0 to pointer to scratchpad
 	emit32(ADD(temp0, 6, temp0), code, k);
 	
-	emit32(LWU(temp1, temp0, 0), code, k); //load lower word to int reg for conversion
-	emit32(FCVTDW(tmp_fp, temp1, 7), code, k); //convert int32 to double
+	// Load the value to be converted into temp1 (64 bits)
+	emit32( LD(temp1, temp0, 0), code, k);
 
-	emit32(LWU(temp1, temp0, 4), code, k); //load upper word
-	emit32(FCVTDW(tmp_fp+1, temp1, 7), code, k); //convert int32 to double
+	// Do the conversion to Fp from unsigned int
+	//emit32(FCTVLUD(tmp_fp, temp1, 7), code, k);
 
-	//caller will complete conversion masking (different for mul or add/sub)
+	// Do the conversion to Fp from int
+	emit32(FCTVLD(tmp_fp, temp1, 7), code, k);
 
 	codePos = k;
 }
