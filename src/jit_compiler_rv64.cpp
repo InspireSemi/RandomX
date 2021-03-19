@@ -34,6 +34,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "virtual_memory.hpp"
 
 
+// Debug line 
+// emit32(0xffffffff, code, codePos);
+// Insert this where you want program to halt
+
 #define LUI(rd, imm)      imm<<12 | rd<<7 | 0b0110111
 #define AUIPC(rd, imm)    imm<<12 | rd<<7 | 0b0010111
 
@@ -118,8 +122,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define FSQRT_D(rd,rs1,rm)    0b0101101<<25 | rs1<<15 |           rm<<12 | rd<<7 | 0b1010011
 #define FCVTWD(rd,rs1,rm)     0b1101001<<25 | 0b0<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
 #define FSGNJ_D(rd,rs1,rs2)   0b0010001<<25 | rs2<<20 | rs1<<15 | 0b000<<12 | rd<<7 | 0b1010011
-#define FCTVLD(rd, rs1, rm)   0b1100001<<25 | 0b00010<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
-#define FCTVLUD(rd, rs1, rm)  0b1100001<<25 | 0b00011<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
+#define FCTVDL(rd, rs1, rm)   0b1101001<<25 | 0b00010<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
+#define FCTVDLU(rd, rs1, rm)  0b1101001<<25 | 0b00011<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
 
 
 #define FMV_X_D(rd, rs1)	  0b1110001<<25 | 0b0000 << 20 | rs1 << 15 | 0b000 << 12 | rd << 7 | 0b1010011
@@ -165,6 +169,7 @@ static const size_t CalcDatasetItemSize =
 
 constexpr uint32_t IntRegMap[8] = { 28, 29, 30, 31, 20, 21, 22, 23 };
 constexpr uint32_t IntRegMap_SuperScalar[8] = { 10, 11, 12, 13, 14, 15, 16, 17 };
+
 
 
 template<typename T> static constexpr size_t Log2(T value) { return (value > 1) ? (Log2(value / 2) + 1) : 0; }
@@ -290,7 +295,7 @@ void JitCompilerRV64::generateProgram(Program& program, ProgramConfiguration& co
 
 #ifdef PRINT_GEN_PROGRAM
 
-	printf("Program in memory after insertions\n");
+	printf("generateProgram Program in memory after insertions\n");
 	printf("##################################\n");
 	printf("Main program starts at : %x\n", (uint64_t)randomx_program_rv64);
 	printf("Main program copied to : %x\n", (uint64_t)code);
@@ -392,7 +397,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 	// This will be encode as a J <imm> and not a JAL. Because the rd = x0
 	const uint32_t offset = (((uint8_t*)randomx_program_rv64_vm_instructions_end_light) - ((uint8_t*)randomx_program_rv64)) - codePos;
 	emit32(JAL(0,offset), code, codePos);
-
+	
 	// and a2, ma,mx, CacheLineAlignMask
 	//This a2 will be passed as a parameter to the randomx_calc_dataset_item_rv64() function 
 	codePos = (((uint8_t*)randomx_program_rv64_light_cacheline_align_mask) - ((uint8_t*)randomx_program_rv64));
@@ -430,7 +435,7 @@ void JitCompilerRV64::generateProgramLight(Program& program, ProgramConfiguratio
 
 #ifdef PRINT_GEN_PROGRAM
 
-	printf("Program in memory after insertions\n");
+	printf("generateProgramLight Program in memory after insertions\n");
 	printf("##################################\n");
 	printf("Main program starts at : %x\n", (uint64_t)randomx_program_rv64);
 	printf("Main program copied to : %x\n", (uint64_t)code);
@@ -503,8 +508,6 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 		emit32(ADDIW(temp1, temp1, CacheSizeMask_lo), code, codePos);
 		emit32(AND(19, 18, temp1), code, codePos);
 
-		//emit32(0xffffffff, code, codePos);
-
 		p1 = ((uint8_t*)randomx_calc_dataset_item_rv64_prefetch) + 12;
 		p2 = (uint8_t*)randomx_calc_dataset_item_rv64_mix;
 		memcpy(code + codePos, p1, p2 - p1);
@@ -522,6 +525,10 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 			const Instruction& instr = prog(j);
 			if (static_cast<SuperscalarInstructionType>(instr.opcode) == randomx::SuperscalarInstructionType::IMUL_RCP)
 				emit64(reciprocalCache[instr.getImm32()], code, codePos);
+#ifdef PRINT_CACHE				
+				printf("IMUL_RCP %d %x\n", j, reciprocalCache[instr.getImm32()]);
+#endif				
+			}
 		}
 
 		// Jump over literal pool
@@ -662,7 +669,9 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 	memcpy(code + codePos, p1, p2 - p1);
 	codePos += p2 - p1;
 
-#ifdef PRINT_SUPERSCALAR_PROGRAM
+#ifdef PRINT_SUPERSCALAR_PROGRAM	
+	printf("code & codePos %lx %lx\n", code, codePos);
+	printf("Allocated memory %lx %lx %lx\n", CodeSize, CalcDatasetItemSize,  CodeSize + CalcDatasetItemSize);
 
 	uint8_t* px = (uint8_t*)randomx_calc_dataset_item_rv64;
 	uint8_t* py = (uint8_t*)randomx_calc_dataset_item_rv64_end;
@@ -889,10 +898,10 @@ void JitCompilerRV64::emitMemLoadFP(uint32_t src, Instruction& instr, uint8_t* c
 	emit32( LD(temp1, temp0, 0), code, k);
 
 	// Do the conversion to Fp from unsigned int
-	//emit32(FCTVLUD(tmp_fp, temp1, 7), code, k);
+	//emit32(FCTVDLU(tmp_fp, temp1, 7), code, k);
 
 	// Do the conversion to Fp from int
-	emit32(FCTVLD(tmp_fp, temp1, 7), code, k);
+	emit32(FCTVDL(tmp_fp, temp1, 7), code, k);
 
 	codePos = k;
 }
@@ -1247,18 +1256,18 @@ void JitCompilerRV64::h_IROL_R(Instruction& instr, uint32_t& codePos)
 	constexpr uint32_t tmp1 = 27;
 	if (src != dst)
 	{
-		emit32( ORI(tmp0, 0, 32), code, codePos); // temp0 now has 32
-		emit32( SUB(tmp1, tmp0, src), code, codePos); // temp1 now has 32 - src
+		emit32( ORI(tmp0, 0, 64), code, codePos); // temp0 now has 64
+		emit32( SUB(tmp1, tmp0, src), code, codePos); // temp1 now has 64 - src
 		emit32( SLL(tmp0, dst, src), code, codePos); // shift the dst right and put it into temp0
 		emit32( SRL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
 		emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
 	}	
 	else
 	{
-		rori_amt = instr.getImm32() & 0xFFF; // limit imm to 12 bits
-		emit32( ORI(tmp0, 0, 32), code, codePos); // temp0 now has 32
+		rori_amt = instr.getImm32() & 0x3F; // limit imm to 6 bits, 0x3f or less
+		emit32( ORI(tmp0, 0, 64), code, codePos); // temp0 now has 64
 		emit32( ORI(tmp1, 0, rori_amt), code, codePos); // temp1 now has imm
-		emit32( SUB(tmp1, tmp0, tmp1), code, codePos); // temp1 now has 32 - imm
+		emit32( SUB(tmp1, tmp0, tmp1), code, codePos); // temp1 now has 64 - imm
 		emit32( SLLI(tmp0, dst, rori_amt), code, codePos); // shift the dst right and put it into temp0
 		emit32( SRL(dst, dst, tmp1), code, codePos); // shift the dst left and put it into dst
 		emit32( OR(dst, dst, tmp0), code, codePos); // Now or the two values together to get the ror
@@ -1290,39 +1299,46 @@ void JitCompilerRV64::h_ISWAP_R(Instruction& instr, uint32_t& codePos)
 	codePos = k;
 }
 
-//swap upper and lower doubles in dst
+// Swaps upper and lower 32 bits in 64 bit fp 
+// Registers are f0 - f4 and e0 - e4
 void JitCompilerRV64::h_FSWAP_R(Instruction& instr, uint32_t& codePos)
 {
 	uint32_t k = codePos;
 
-	const uint32_t dst = instr.dst + 16;
-	const uint32_t src = instr.dst + 17;
-	constexpr uint32_t tmp_fp = 29;
+	const uint32_t dst = instr.dst;
+	constexpr uint32_t tmp0 = 26;
+	constexpr uint32_t tmp1 = 27;
 
-
-	emit32(FSGNJ_D(tmp_fp, dst, dst), code, k);
-	emit32(FSGNJ_D(dst, src, src), code, k);
-	emit32(FSGNJ_D(src, tmp_fp, tmp_fp), code, k);
-
+	// Move the bits into a int register, 
+	// swap upper/lower bits via SRL/SLL/OR
+	// then put it back into the fp register
+	emit32(FMV_X_D(tmp0, dst), code , k);
+	emit32(ADDI(tmp1, tmp0, 0), code, k);
+	emit32(SLLI(tmp0, tmp0, 32), code, k); 
+	emit32(SRLI(tmp1, tmp1, 32), code, k);
+	emit32(OR(tmp0, tmp1, tmp0), code, k);
+	emit32(FMV_D_X(dst, tmp0), code, k);
 	codePos = k;
 }
 
+// Registers f0 - f4 and a0 - a4
 void JitCompilerRV64::h_FADD_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t src = (instr.src % 4) + 24;
-	const uint32_t dst = (instr.dst % 4) + 16;
+	const uint32_t src = (instr.src % 4) + 8;
+	const uint32_t dst = (instr.dst % 4);
 
 	emit32( FADD_D(dst, dst, src, 7), code, codePos);
 }
 
+// registers are f0 - f4 and int registers
 void JitCompilerRV64::h_FADD_M(Instruction& instr, uint32_t& codePos)
 {
 	uint32_t k = codePos;
 
 	const uint32_t src = IntRegMap[instr.src];
-	const uint32_t dst = (instr.dst % 4) + 16;
+	const uint32_t dst = (instr.dst % 4);
 
-	constexpr uint32_t tmp_fp = 29;
+	constexpr uint32_t tmp_fp = 24;
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 	
 	emit32( FADD_D(dst, dst, tmp_fp, 7), code, k);
@@ -1330,22 +1346,24 @@ void JitCompilerRV64::h_FADD_M(Instruction& instr, uint32_t& codePos)
 	codePos = k;
 }
 
+//registers are f0 - f4 and a0 - a4 
 void JitCompilerRV64::h_FSUB_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t src = (instr.src % 4) + 24;
-	const uint32_t dst = (instr.dst % 4) + 16;
+	const uint32_t src = (instr.src % 4) + 8;
+	const uint32_t dst = (instr.dst % 4);
 
 	emit32( FSUB_D(dst,dst,src, 7), code, codePos);
 }
 
+// registers are e0 - e4 and int registers. 
 void JitCompilerRV64::h_FSUB_M(Instruction& instr, uint32_t& codePos)
 {
 	uint32_t k = codePos;
 
 	const uint32_t src = IntRegMap[instr.src];
-	const uint32_t dst = (instr.dst % 4) + 16;
+	const uint32_t dst = (instr.dst % 4);
 
-	constexpr uint32_t tmp_fp = 29;
+	constexpr uint32_t tmp_fp = 24;
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 	
 	emit32( FSUB_D(dst, dst, tmp_fp, 7), code, k);
@@ -1353,9 +1371,10 @@ void JitCompilerRV64::h_FSUB_M(Instruction& instr, uint32_t& codePos)
 	codePos = k;
 }
 
+// registers are e0 - e4 
 void JitCompilerRV64::h_FSCAL_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t dst = (instr.dst % 4) + 16;
+	const uint32_t dst = (instr.dst % 4);
 	constexpr uint32_t tmp0 = 26;
 	constexpr uint32_t tmp1 = 27;
 	// fp30 contains the scale mask
@@ -1367,42 +1386,47 @@ void JitCompilerRV64::h_FSCAL_R(Instruction& instr, uint32_t& codePos)
 	//emit32( FXOR_D(dst,dst,31), code, codePos);
 }
 
+// registers are a0 - a4 and e0 - e4
 void JitCompilerRV64::h_FMUL_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t src = (instr.src % 4) + 24;
-	const uint32_t dst = (instr.dst % 4) + 20;
+	const uint32_t src = (instr.src % 4) + 8;
+	const uint32_t dst = (instr.dst % 4) + 4;
 
 	emit32( FMUL_D(dst,dst,src, 7), code, codePos);
 }
 
+// registers are e0 - e4 and int registers
 void JitCompilerRV64::h_FDIV_M(Instruction& instr, uint32_t& codePos)
 {
 	uint32_t k = codePos;
 
 	const uint32_t src = IntRegMap[instr.src];
-	const uint32_t dst = (instr.dst % 4) + 20;
+	const uint32_t dst = (instr.dst % 4) + 4;
 
-	constexpr uint32_t tmp_fp = 29;
+	constexpr uint32_t tmp_fp = 24;
+	constexpr uint32_t tmp0 = 26;
+	constexpr uint32_t tmp1 = 27;
+
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 
+// and tmp_fp, tmp_fp, and_mask_reg
+// orr tmp_fp, tmp_fp, or_mask_reg
+	emit32( FMV_X_D(tmp0, tmp_fp), code, k);
+	emit32( FMV_X_D(tmp1, 26), code, k);
+	emit32( AND(tmp0,tmp0,tmp1), code, k);
+	emit32( FMV_X_D(tmp1, 28), code, k);
+	emit32( OR(tmp0,tmp0,tmp1), code, k);
+	emit32( FMV_D_X(tmp_fp, tmp0), code, k);
 
-// Not sure if these are needed?  They look specific to ARM??
-//***************************************************************
-	// and tmp_fp, tmp_fp, and_mask_reg
-//	emit32(FAND_D(tmp_fp, tmp_fp, 26), code, codePos);
-
-	// orr tmp_fp, tmp_fp, or_mask_reg
-//	emit32(FORR_D(tmp_fp, tmp_fp, 28), code, codePos);
-//***************************************************************
-
-	emit32( FDIV_D(dst, dst, tmp_fp, 7), code, k);
+	emit32(FDIV_D(dst, dst, tmp_fp, 7), code, k);
 
 	codePos = k;
 }
 
+// registers e0 - e4
 void JitCompilerRV64::h_FSQRT_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t dst = (instr.dst % 4) + 20;
+	const uint32_t dst = (instr.dst % 4) + 4;
 
 	emit32(FSQRT_D(dst,dst,7), code, codePos);
 }

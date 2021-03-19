@@ -92,19 +92,19 @@
 // x16 -> literal for IMUL_RCP	a6
 // x17 -> literal for IMUL_RCP	a7
 
-#use F regs, not V for now; lower double in fN, upper in fN+1
+#use F regs, lower double in fN, upper in fN+1
 // f0 -> "f0"      
-// f2 -> "f1"
-// f4 -> "f2"
-// f6 -> "f3"
-// f8 -> "e0"
-// f10 -> "e1"
-// f12 -> "e2"
-// f14 -> "e3"
-// f16 -> "a0"
-// f18 -> "a1"
-// f20 -> "a2"
-// f22 -> "a3"
+// f1 -> "f1"
+// f2 -> "f2"
+// f3 -> "f3"
+// f4 -> "e0"
+// f5 -> "e1"
+// f6 -> "e2"
+// f7 -> "e3"
+// f8 -> "a0"
+// f9 -> "a1"
+// f10 -> "a2"
+// f11 -> "a3"
 // f24 -> temporary
 // f26 -> E 'and' mask = 0x00ffffffffffffff
 // f28 -> E 'or' mask  = 0x3*00000000******
@@ -179,10 +179,10 @@ DECL(randomx_program_rv64):
 	mv	spMix1, mamx
 
 	//init spAddr0 = mx
-	mv spAddr0, mamx
+	//mv spAddr0, mamx
 
 	//init spaddr1 = ma
-	srli spAddr1, mamx, 32
+	//srli spAddr1, mamx, 32
 
 	// Zero integer registers
 	li	r0, 0
@@ -194,30 +194,28 @@ DECL(randomx_program_rv64):
 	li	r6, 0
 	li	r7, 0
 
-	// Load group A registers
-	fld f16, 192(a0)  //offsets seem off vs spec... check c code
-	fld f17, 200(a0)
-	fld f18, 208(a0)
-	fld f19, 216(a0)
-	fld f20, 224(a0)
-	fld f21, 232(a0)
-	fld f22, 240(a0)
-	fld f23, 248(a0)
+	// Load group A registers -- Norm 128 bit loads, REiscV only 64 bit on fp registers
+	// Load from 0xC0 - 0xF8 for 128 bit
+	// Load from 0xC0 - 0xD8 for 64 bit
+	fld f8, 0xC0(a0)  //offsets seem off vs spec... check c code
+	fld f9, 0xC8(a0)
+	fld f10, 0xD0(a0)
+	fld f11, 0xD8(a0)
 
 	// Load E 'and' mask
-	li	spAddr0, 0x00FFFFFFFFFFFFFF
-	fmv.d.x	f26, spAddr0
-	fmv.d.x	f27, spAddr0
+	// 128 bit puts this same value in upper and lower 64 bit words
+	li	temp0, 0x00FFFFFFFFFFFFFF
+	fmv.d.x	f26, temp0
 
-	// Load E 'or' mask (stored in reg.f[0])
-	ld	spAddr0, 64(a0)  
-	fmv.d.x	f28, spAddr0
-	fmv.d.x	f29, spAddr0
+	// Load E 'or' mask
+	// 128 bit puts this value in both upper and lower 64 bit words
+	ld	temp0, 64(a0)  
+	fmv.d.x	f28, temp0
 
 	// Load scale mask
-	li	spAddr0, 0x80f0000000000000
-	fmv.d.x	f30, spAddr0
-	fmv.d.x	f31, spAddr0
+	// 128 bit puts this value in both lower and upper 64 bit words.
+	li	temp0, 0x80f0000000000000
+	fmv.d.x	f30, temp0
 
 	// Init rounding mode 0 (RandomX and RISC-V use differnt FRM codes!  0 is "Round to Nearest, ties to Even" for both)
 	li temp0, 0
@@ -293,60 +291,38 @@ DECL(randomx_program_rv64_main_loop):
 	xor	r7, r7, temp1
 	
 	// 4.6.2 step 3------------------------------------
-	// Load group F registers with L3 scratchpad data (from spAddr1) (32b words to doubles)
-	lw temp0, 0(spAddr1)
-	lw temp1, 4(spAddr1)
-	fcvt.d.w f0, temp0
-	fcvt.d.w f1, temp1
-	lw temp0, 8(spAddr1)
-	lw temp1, 12(spAddr1)
-	fcvt.d.w f2, temp0
-	fcvt.d.w f3, temp1
-	lw temp0, 16(spAddr1)
-	lw temp1, 20(spAddr1)
-	fcvt.d.w f4, temp0
-	fcvt.d.w f5, temp1
-	lw temp0, 24(spAddr1)
-	lw temp1, 28(spAddr1)
-	fcvt.d.w f6, temp0
-	fcvt.d.w f7, temp1
+	// Load group F registers with L3 scratchpad data (from spAddr1)
+	// NOTE: 128 bit loads 32 bit values from spAddr1 sign extends them and puts them into into upper/lower of 128 bits.
+	// See ARM code.. 
+	// What you get in each fp is 0xYYYYYYYYXXXXXXXXYYYYYYYYXXXXXXXX Y = sign extended bits X = Data from spAddr1
+	ld temp0, 0(spAddr1)
+	fcvt.d.l f0, temp0
+	ld temp0, 8(spAddr1)
+	fcvt.d.l f1, temp0
+	ld temp0, 16(spAddr1)
+	fcvt.d.l f2, temp0
+	ld temp0, 24(spAddr1)
+	fcvt.d.l f3, temp0
 
-	// Load group E registers (from spAddr1+32) (32b words to doubles)  
-	lw temp0, 32(spAddr1)
-	lw temp1, 36(spAddr1)
-	fcvt.d.w f8, temp0
-	fcvt.d.w f9, temp1
-	lw temp0, 40(spAddr1)
-	lw temp1, 44(spAddr1)
-	fcvt.d.w f10, temp0
-	fcvt.d.w f11, temp1
-	lw temp0, 48(spAddr1)
-	lw temp1, 52(spAddr1)
-	fcvt.d.w f12, temp0
-	fcvt.d.w f13, temp1
-	lw temp0, 56(spAddr1)
-	lw temp1, 60(spAddr1)
-	fcvt.d.w f14, temp0
-	fcvt.d.w f15, temp1
+	// Load group E registers (from spAddr1+32
+	ld temp0, 32(spAddr1)
+	fcvt.d.l f4, temp0
+	ld temp0, 40(spAddr1)
+	fcvt.d.l f5, temp0
+	ld temp0, 48(spAddr1)
+	fcvt.d.l f6, temp0
+	ld temp0, 56(spAddr1)
+	fcvt.d.l f7, temp0
 
 	// mask E registers to confine range  (using macros; may add f logic instrs later)
-	fandd f8, f8, f26, temp0, temp1
-	forrd f8, f8, f28, temp0, temp1
-	fandd f9, f9, f26, temp0, temp1
-	forrd f9, f9, f28, temp0, temp1
-	fandd f10, f10, f26, temp0, temp1
-	forrd f10, f10, f28, temp0, temp1
-	fandd f11, f11, f26, temp0, temp1
-	forrd f11, f11, f28, temp0, temp1
-	fandd f12, f12, f26, temp0, temp1
-	forrd f12, f12, f28, temp0, temp1
-	fandd f13, f13, f26, temp0, temp1
-	forrd f13, f13, f28, temp0, temp1
-	fandd f14, f14, f26, temp0, temp1
-	forrd f14, f14, f28, temp0, temp1
-	fandd f15, f15, f26, temp0, temp1
-	forrd f15, f15, f28, temp0, temp1
-
+	fandd f4, f4, f26, temp0, temp1
+	forrd f4, f4, f28, temp0, temp1
+	fandd f5, f5, f26, temp0, temp1
+	forrd f5, f5, f28, temp0, temp1
+	fandd f6, f6, f26, temp0, temp1
+	forrd f6, f6, f28, temp0, temp1
+	fandd f7, f7, f26, temp0, temp1
+	forrd f7, f7, f28, temp0, temp1
 	
 	// 4.6.2 step 4------------------------------------
 	// Execute random VM instructions
