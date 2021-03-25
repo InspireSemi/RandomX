@@ -112,7 +112,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define LD(rd,rs1,imm)    imm<<20           | rs1<<15 | 0b011<<12 | rd<<7  | 0b0000011
 #define LW(rd,rs1,imm)    imm<<20           | rs1<<15 | 0b010<<12 | rd<<7  | 0b0000011
 #define LWU(rd,rs1,imm)    imm<<20           | rs1<<15 | 0b110<<12 | rd<<7  | 0b0000011
-#define SD(rs2,rs1,imm)   imm<<25 | rs2<<20 | rs1<<15 | 0b011<<12 | imm<<7 | 0b0100011  //fixme: slice imm
+#define SD(rs2,rs1,imm)   imm<<25 | rs2<<20 | rs1<<15 | 0b011<<12 | imm<<7 | 0b0100011  
+//fixme: slice imm
 
 
 #define FADD_D(rd,rs1,rs2,rm) 0b0000001<<25 | rs2<<20 | rs1<<15 | rm<<12 | rd<<7 | 0b1010011
@@ -128,7 +129,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define FMV_X_D(rd, rs1)	  0b1110001<<25 | 0b0000 << 20 | rs1 << 15 | 0b000 << 12 | rd << 7 | 0b1010011
 #define FMV_D_X(rd, rs1)	  0b1111001<<25 | 0b0000 << 20 | rs1 << 15 | 0b000 << 12 | rd << 7 | 0b1010011
-
+// really fsgnj.d
+#define FMV_D(rd, rs1)		  0b0010001<<25 | rs1 << 20 | rs1 << 15 | 0b000 << 12 | rd << 7 | 0b1010011
 
 //custom F reg bitwise logic - pack with SGNJ, upper funct3 range.
 #define FXOR_D(rd,rs1,rs2)    0b0010001<<25 | rs2<<20 | rs1<<15 | 0b101<<12 | rd<<7 | 0b1010011 //fixme: Add instr
@@ -894,14 +896,11 @@ void JitCompilerRV64::emitMemLoadFP(uint32_t src, Instruction& instr, uint8_t* c
 	// Add temp0 to pointer to scratchpad
 	emit32(ADD(temp0, 6, temp0), code, k);
 	
-	// Load the value to be converted into temp1 (64 bits)
-	emit32( LD(temp1, temp0, 0), code, k);
-
-	// Do the conversion to Fp from unsigned int
-	//emit32(FCTVDLU(tmp_fp, temp1, 7), code, k);
-
-	// Do the conversion to Fp from int
+	emit32(LWU(temp1,temp0,0), code , k);
 	emit32(FCTVDL(tmp_fp, temp1, 7), code, k);
+
+	emit32(LWU(temp1,temp0,4), code , k);
+	emit32(FCTVDL(tmp_fp+1, temp1, 7), code, k);
 
 	codePos = k;
 }
@@ -1299,35 +1298,32 @@ void JitCompilerRV64::h_ISWAP_R(Instruction& instr, uint32_t& codePos)
 	codePos = k;
 }
 
-// Swaps upper and lower 32 bits in 64 bit fp 
-// Registers are f0 - f4 and e0 - e4
+// Swaps fpx.0 and fpx.1 registers
+// Registers are f0 - f3 and e0 - e3
 void JitCompilerRV64::h_FSWAP_R(Instruction& instr, uint32_t& codePos)
 {
 	uint32_t k = codePos;
 
-	const uint32_t dst = instr.dst;
-	constexpr uint32_t tmp0 = 26;
-	constexpr uint32_t tmp1 = 27;
+	const uint32_t dst = (instr.dst * 2);
+	constexpr uint32_t tmp_fp = 24;
 
-	// Move the bits into a int register, 
-	// swap upper/lower bits via SRL/SLL/OR
-	// then put it back into the fp register
-	emit32(FMV_X_D(tmp0, dst), code , k);
-	emit32(ADDI(tmp1, tmp0, 0), code, k);
-	emit32(SLLI(tmp0, tmp0, 32), code, k); 
-	emit32(SRLI(tmp1, tmp1, 32), code, k);
-	emit32(OR(tmp0, tmp1, tmp0), code, k);
-	emit32(FMV_D_X(dst, tmp0), code, k);
+	emit32(FMV_D(tmp_fp, dst), code, k);
+	emit32(FMV_D(dst+1, dst), code, k);
+	emit32(FMV_D(dst, tmp_fp), code, k);		
+
 	codePos = k;
 }
 
-// Registers f0 - f4 and a0 - a4
+// Registers f0 - f3 and a0 - a3
 void JitCompilerRV64::h_FADD_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t src = (instr.src % 4) + 8;
-	const uint32_t dst = (instr.dst % 4);
+	const uint32_t src = ((instr.src % 4) * 2) + 16; // a0 - a3 
+	const uint32_t dst = (instr.dst % 4) * 2; // f0 - f3
 
+	// Add fpx.0 + fpy.0
 	emit32( FADD_D(dst, dst, src, 7), code, codePos);
+	// add fpx.1 + fpy.1
+	emit32( FADD_D(dst+1, dst+1, src+1, 7), code, codePos);
 }
 
 // registers are f0 - f4 and int registers
@@ -1336,12 +1332,13 @@ void JitCompilerRV64::h_FADD_M(Instruction& instr, uint32_t& codePos)
 	uint32_t k = codePos;
 
 	const uint32_t src = IntRegMap[instr.src];
-	const uint32_t dst = (instr.dst % 4);
+	const uint32_t dst = (instr.dst % 4) * 2;
 
 	constexpr uint32_t tmp_fp = 24;
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 	
 	emit32( FADD_D(dst, dst, tmp_fp, 7), code, k);
+	emit32( FADD_D(dst+1, dst+1, tmp_fp+1, 7), code, k);
 
 	codePos = k;
 }
@@ -1349,10 +1346,11 @@ void JitCompilerRV64::h_FADD_M(Instruction& instr, uint32_t& codePos)
 //registers are f0 - f4 and a0 - a4 
 void JitCompilerRV64::h_FSUB_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t src = (instr.src % 4) + 8;
-	const uint32_t dst = (instr.dst % 4);
+	const uint32_t src = ((instr.src % 4) * 2) + 16;
+	const uint32_t dst = (instr.dst % 4) * 2;
 
 	emit32( FSUB_D(dst,dst,src, 7), code, codePos);
+	emit32( FSUB_D(dst+1,dst+1,src+1, 7), code, codePos);
 }
 
 // registers are e0 - e4 and int registers. 
@@ -1361,12 +1359,13 @@ void JitCompilerRV64::h_FSUB_M(Instruction& instr, uint32_t& codePos)
 	uint32_t k = codePos;
 
 	const uint32_t src = IntRegMap[instr.src];
-	const uint32_t dst = (instr.dst % 4);
+	const uint32_t dst = ((instr.dst % 4) * 2) + 8;
 
 	constexpr uint32_t tmp_fp = 24;
 	emitMemLoadFP<tmp_fp>(src, instr, code, k);
 	
 	emit32( FSUB_D(dst, dst, tmp_fp, 7), code, k);
+	emit32( FSUB_D(dst+1, dst+1, tmp_fp+1, 7), code, k);
 
 	codePos = k;
 }
@@ -1374,7 +1373,7 @@ void JitCompilerRV64::h_FSUB_M(Instruction& instr, uint32_t& codePos)
 // registers are e0 - e4 
 void JitCompilerRV64::h_FSCAL_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t dst = (instr.dst % 4);
+	const uint32_t dst = ((instr.dst % 4) * 2) + 8;
 	constexpr uint32_t tmp0 = 26;
 	constexpr uint32_t tmp1 = 27;
 	// fp30 contains the scale mask
@@ -1382,6 +1381,11 @@ void JitCompilerRV64::h_FSCAL_R(Instruction& instr, uint32_t& codePos)
 	emit32( FMV_X_D(tmp1, dst), code, codePos);
 	emit32( XOR(tmp0,tmp0,tmp1), code, codePos);
 	emit32( FMV_D_X(dst, tmp0), code, codePos);
+
+	emit32( FMV_X_D(tmp0, 30), code, codePos);
+	emit32( FMV_X_D(tmp1, dst+1), code, codePos);
+	emit32( XOR(tmp0,tmp0,tmp1), code, codePos);
+	emit32( FMV_D_X(dst+1, tmp0), code, codePos);
 	//XOR FP reg with 0x80F0000000000000  (const stored in reg 31)
 	//emit32( FXOR_D(dst,dst,31), code, codePos);
 }
@@ -1389,10 +1393,11 @@ void JitCompilerRV64::h_FSCAL_R(Instruction& instr, uint32_t& codePos)
 // registers are a0 - a4 and e0 - e4
 void JitCompilerRV64::h_FMUL_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t src = (instr.src % 4) + 8;
-	const uint32_t dst = (instr.dst % 4) + 4;
+	const uint32_t src = ((instr.src % 4) * 2) + 16;
+	const uint32_t dst = ((instr.dst % 4) * 2) + 8;
 
 	emit32( FMUL_D(dst,dst,src, 7), code, codePos);
+	emit32( FMUL_D(dst+1,dst+1,src+1, 7), code, codePos);
 }
 
 // registers are e0 - e4 and int registers
@@ -1401,7 +1406,7 @@ void JitCompilerRV64::h_FDIV_M(Instruction& instr, uint32_t& codePos)
 	uint32_t k = codePos;
 
 	const uint32_t src = IntRegMap[instr.src];
-	const uint32_t dst = (instr.dst % 4) + 4;
+	const uint32_t dst = ((instr.dst % 4) * 2) + 8;
 
 	constexpr uint32_t tmp_fp = 24;
 	constexpr uint32_t tmp0 = 26;
@@ -1417,8 +1422,15 @@ void JitCompilerRV64::h_FDIV_M(Instruction& instr, uint32_t& codePos)
 	emit32( FMV_X_D(tmp1, 28), code, k);
 	emit32( OR(tmp0,tmp0,tmp1), code, k);
 	emit32( FMV_D_X(tmp_fp, tmp0), code, k);
-
 	emit32(FDIV_D(dst, dst, tmp_fp, 7), code, k);
+
+	emit32( FMV_X_D(tmp0, tmp_fp+1), code, k);
+	emit32( FMV_X_D(tmp1, 26), code, k);
+	emit32( AND(tmp0,tmp0,tmp1), code, k);
+	emit32( FMV_X_D(tmp1, 28), code, k);
+	emit32( OR(tmp0,tmp0,tmp1), code, k);
+	emit32( FMV_D_X(tmp_fp+1, tmp0), code, k);
+	emit32(FDIV_D(dst+1, dst+1, tmp_fp+1, 7), code, k);
 
 	codePos = k;
 }
@@ -1426,9 +1438,10 @@ void JitCompilerRV64::h_FDIV_M(Instruction& instr, uint32_t& codePos)
 // registers e0 - e4
 void JitCompilerRV64::h_FSQRT_R(Instruction& instr, uint32_t& codePos)
 {
-	const uint32_t dst = (instr.dst % 4) + 4;
+	const uint32_t dst = ((instr.dst % 4) * 2) + 8;
 
 	emit32(FSQRT_D(dst,dst,7), code, codePos);
+	emit32(FSQRT_D(dst+1,dst+1,7), code, codePos);
 }
 
 void JitCompilerRV64::h_CBRANCH(Instruction& instr, uint32_t& codePos)
