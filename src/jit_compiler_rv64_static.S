@@ -93,22 +93,35 @@
 // x17 -> literal for IMUL_RCP	a7
 
 #use F regs, lower double in fN, upper in fN+1
-// f0 -> "f0"      
-// f1 -> "f1"
-// f2 -> "f2"
-// f3 -> "f3"
-// f4 -> "e0"
-// f5 -> "e1"
-// f6 -> "e2"
-// f7 -> "e3"
-// f8 -> "a0"
-// f9 -> "a1"
-// f10 -> "a2"
-// f11 -> "a3"
-// f24 -> temporary
+// f0 -> "f0.0"
+// f1 -> "f0.1"      
+// f2 -> "f1.0"
+// f3 -> "f1.1"
+// f4 -> "f2.0"
+// f5 -> "f2.1"
+// f6 -> "f3.0"
+// f7 -> "f3.1"
+// f8 -> "e0.0"
+// f9 -> "e0.1"
+// f10 -> "e1.0"
+// f11 -> "e1.1"
+// f12 -> "e2.0"
+// f13 -> "e2.1"
+// f14 -> "e3.0"
+// f15 -> "e3.1"
+// f16 -> "a0.0"
+// f17 -> "a0.1"
+// f18 -> "a1.0"
+// f19 -> "a1.1"
+// f20 -> "a2.0"
+// f21 -> "a2.1"
+// f22 -> "a3.0"
+// f23 -> "a3.1"
+// f24 -> temporary.0
+// f25 -> temporary.1
 // f26 -> E 'and' mask = 0x00ffffffffffffff
-// f28 -> E 'or' mask  = 0x3*00000000******
-// f30 -> scale mask   = 0x81f0000000000000
+// f28 -> E 'or' mask = 0x3*00000000******
+// f30 -> scale mask s= 0x81f0000000000000
 
 // v0-v15/v31 -> store 32-bit literals
 
@@ -194,13 +207,17 @@ DECL(randomx_program_rv64):
 	li	r6, 0
 	li	r7, 0
 
-	// Load group A registers -- Norm 128 bit loads, REiscV only 64 bit on fp registers
-	// Load from 0xC0 - 0xF8 for 128 bit
-	// Load from 0xC0 - 0xD8 for 64 bit
-	fld f8, 0xC0(a0)  //offsets seem off vs spec... check c code
-	fld f9, 0xC8(a0)
-	fld f10, 0xD0(a0)
-	fld f11, 0xD8(a0)
+	// Load group A registers
+	// Load from 0xC8 - 0xF8
+	fld f16, 0xC8(a0)  //offsets seem off vs spec... check c code
+	fld f17, 0xD0(a0)
+	fld f18, 0xD8(a0)
+	fld f19, 0xE0(a0)
+	fld f20, 0xE8(a0)
+	fld f21, 0xF0(a0)
+	fld f22, 0xF8(a0)
+	fld f23, 0x100(a0)
+
 
 	// Load E 'and' mask
 	// 128 bit puts this same value in upper and lower 64 bit words
@@ -211,7 +228,7 @@ DECL(randomx_program_rv64):
 	// 128 bit puts this value in both upper and lower 64 bit words
 	ld	temp0, 64(a0)  
 	fmv.d.x	f28, temp0
-
+	
 	// Load scale mask
 	// 128 bit puts this value in both lower and upper 64 bit words.
 	li	temp0, 0x80f0000000000000
@@ -236,7 +253,7 @@ DECL(randomx_program_rv64):
 	ld	x16, literal_x16
 	ld	x17, literal_x17
 
-/* fixme: need vector ld instr's - not in toolchain?
+/* fixme: need vector ld instr's - Vector Extension not yet published 
 	// Read misc instr literals (not used yet; could use v16-v31 too)
 	ld	v0, literal_v0
 	ld	v1, literal_v1
@@ -292,43 +309,74 @@ DECL(randomx_program_rv64_main_loop):
 	
 	// 4.6.2 step 3------------------------------------
 	// Load group F registers with L3 scratchpad data (from spAddr1)
-	// NOTE: 128 bit loads 32 bit values from spAddr1 sign extends them and puts them into into upper/lower of 128 bits.
+	// NOTE: Loads 32 bit values from spAddr1 sign extends them
 	// See ARM code.. 
-	// What you get in each fp is 0xYYYYYYYYXXXXXXXXYYYYYYYYXXXXXXXX Y = sign extended bits X = Data from spAddr1
-	ld temp0, 0(spAddr1)
+	// What you get in each fp is 0xYYYYYYYYXXXXXXXX Y = sign extended bits X = Data from spAddr1
+	// f0.0 f0.1
+	lwu temp0, 0x0(spAddr1)
 	fcvt.d.l f0, temp0
-	ld temp0, 8(spAddr1)
+	lwu temp0, 0x4(spAddr1)
 	fcvt.d.l f1, temp0
-	ld temp0, 16(spAddr1)
+	// f1.0 f1.1
+	lwu temp0, 0x8(spAddr1)
 	fcvt.d.l f2, temp0
-	ld temp0, 24(spAddr1)
+	lwu temp0, 0xC(spAddr1)
 	fcvt.d.l f3, temp0
-
-	// Load group E registers (from spAddr1+32
-	ld temp0, 32(spAddr1)
+	// f2.0 f2.1
+	lwu temp0, 0x10(spAddr1)
 	fcvt.d.l f4, temp0
-	ld temp0, 40(spAddr1)
+	lwu temp0, 0x14(spAddr1)
 	fcvt.d.l f5, temp0
-	ld temp0, 48(spAddr1)
+	// f3.0 f3.1
+	lwu temp0, 0x18(spAddr1)
 	fcvt.d.l f6, temp0
-	ld temp0, 56(spAddr1)
+	lwu temp0, 0x1C(spAddr1)
 	fcvt.d.l f7, temp0
 
+	// Load group E registers (from spAddr1+32
+	// e0.0 e0.1
+	lwu temp0, 0x20(spAddr1)
+	fcvt.d.l f8, temp0
+	lwu temp0, 0x24(spAddr1)
+	fcvt.d.l f9, temp0
+	// e1.0 e1.1
+	lwu temp0, 0x28(spAddr1)
+	fcvt.d.l f10, temp0
+	lwu temp0, 0x2C(spAddr1)
+	fcvt.d.l f11, temp0
+	// e2.0 e2.1
+	lwu temp0, 0x30(spAddr1)
+	fcvt.d.l f12, temp0
+	lwu temp0, 0x34(spAddr1)
+	fcvt.d.l f13, temp0
+	// e3.0 e3.1
+	lwu temp0, 0x38(spAddr1)
+	fcvt.d.l f14, temp0
+	lwu temp0, 0x3C(spAddr1)
+	fcvt.d.l f15, temp0
+
 	// mask E registers to confine range  (using macros; may add f logic instrs later)
-	fandd f4, f4, f26, temp0, temp1
-	forrd f4, f4, f28, temp0, temp1
-	fandd f5, f5, f26, temp0, temp1
-	forrd f5, f5, f28, temp0, temp1
-	fandd f6, f6, f26, temp0, temp1
-	forrd f6, f6, f28, temp0, temp1
-	fandd f7, f7, f26, temp0, temp1
-	forrd f7, f7, f28, temp0, temp1
+	fandd f8, f8, f26, temp0, temp1
+	fandd f9, f9, f26, temp0, temp1
+	fandd f10, f10, f26, temp0, temp1
+	fandd f11, f11, f26, temp0, temp1
+	fandd f12, f12, f26, temp0, temp1
+	fandd f13, f13, f26, temp0, temp1
+	fandd f14, f14, f26, temp0, temp1
+	fandd f15, f15, f26, temp0, temp1
+	forrd f8, f8, f28, temp0, temp1
+	forrd f9, f9, f28, temp0, temp1
+	forrd f10, f10, f28, temp0, temp1
+	forrd f11, f11, f28, temp0, temp1
+	forrd f12, f12, f28, temp0, temp1
+	forrd f13, f13, f28, temp0, temp1	
+	forrd f14, f14, f28, temp0, temp1
+	forrd f15, f15, f28, temp0, temp1
 	
 	// 4.6.2 step 4------------------------------------
 	// Execute random VM instructions
 DECL(randomx_program_rv64_vm_instructions):
 	.fill RANDOMX_PROGRAM_SIZE*12,4,0  	// buffer for generated instructions
-
 
 // IMUL_RCP reg literal pool
 literal_x4: .fill 1,8,0
@@ -675,7 +723,7 @@ DECL(randomx_calc_dataset_item_rv64):
 
 	ld	t0, superscalarMul0
 
-	// rl[0] = (itemNumber + 1) * superscalarMul0;
+	// rl[0] = (itemNumber + 1) * superscalarMul0;ldpsw
 	// madd	a0, a2, t0, t0
 	addi a2, a2, 1
 	mul a0, a2, t0
