@@ -530,7 +530,6 @@ void JitCompilerRV64::generateSuperscalarHash(SuperscalarProgram(&programs)[N], 
 #ifdef PRINT_CACHE				
 				printf("IMUL_RCP %d %x\n", j, reciprocalCache[instr.getImm32()]);
 #endif				
-			}
 		}
 
 		// Jump over literal pool
