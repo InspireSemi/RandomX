@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
 
 	store32(&seed, seedValue);
 
-	std::cout << "RandomX benchmark v1.1.9_inspire" << std::endl;
+	std::cout << "RandomX benchmark v1.1.10_inspire" << std::endl;
 
 	if (help) {
 		printUsage(argv[0]);

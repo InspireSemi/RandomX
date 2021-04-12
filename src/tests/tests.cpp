@@ -68,7 +68,7 @@ void runTest(const char* name, bool condition, FUNC f) {
 int main() {
 	char testHash[32];
 
-	printf("RandomX Test Version 1.0.3_inspire\n");
+	printf("RandomX Test Version 1.0.4_inspire\n");
 
 	//std::cout << "Allocating randomx_cache..." << std::endl;
 	cache = randomx_alloc_cache(RANDOMX_FLAG_DEFAULT);
